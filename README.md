@@ -1,9 +1,9 @@
 # Tokentide plugins for Claude, ChatGPT and Codex
 
 The official plugin marketplace of [Tokentide](https://tokentide.app): Venice AI models below list
-price, with a published intraday tide table, an opt-in Low Tide lane and zero data retention on Private
-models. The same marketplace serves Claude (`.claude-plugin/marketplace.json`) and ChatGPT and Codex
-(`.agents/plugins/marketplace.json`).
+price, with a published intraday tide table, an opt-in Low Tide lane and zero data retention at
+Tokentide, on every model. The same marketplace serves Claude (`.claude-plugin/marketplace.json`) and
+ChatGPT and Codex (`.agents/plugins/marketplace.json`).
 
 | Plugin                           | What it adds                                                                                                                                                |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |

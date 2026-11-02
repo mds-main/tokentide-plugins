@@ -63,7 +63,7 @@ skill never asks you to paste the key into the chat. Its README lists every requ
   Tokentide's API with your key, and your agent's web search gathers public information about the
   product. Generated files stay in your project folder.
 - Tokentide never stores prompts, inputs or outputs; it keeps account data, request metadata and the
-  billing ledger. On Private models, Venice retains nothing either. Anonymized models' providers may
+  billing ledger. For Private models, Venice's privacy policy says Venice retains nothing either. Anonymized models' providers may
   retain content under their own policies, without your identity. See
   https://tokentide.app/docs/privacy and https://tokentide.app/legal/privacy
 
