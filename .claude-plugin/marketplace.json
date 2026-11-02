@@ -1,0 +1,14 @@
+{
+  "name": "tokentide",
+  "owner": { "name": "Tokentide", "email": "support@tokentide.app" },
+  "metadata": {
+    "description": "Official Claude plugins from Tokentide: the Tokentide API connector and the skills built on it."
+  },
+  "plugins": [
+    {
+      "name": "tokentide",
+      "source": "./plugins/tokentide",
+      "description": "Use the Tokentide API from Claude: live tide prices, Low Tide, quotes and cost estimates, the model catalog, your balance and usage, and paid calls under your own price caps. Includes a skill that researches a product and turns it into short-form vertical videos for TikTok, Instagram Reels and X with Tokentide's models."
+    }
+  ]
+}

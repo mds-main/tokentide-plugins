@@ -1,0 +1,247 @@
+{
+  "_help": "Copy to briefs/vNN.json. Paths are relative to the project root. Models are aliases chosen per project with `models.py recommend` + `models.py choose` (@keyframe, @scene, @i2v, @i2v_audio, @r2v, @tts, @music, @sfx); a literal model id also works. Field reference: references/post-production.md#video-spec.",
+  "id": "v01",
+  "title": "24-hour ice test",
+  "status": "draft",
+  "aspect_ratio": "9:16",
+  "target_duration_s": 13,
+  "budget_usd": 8,
+  "platforms": [
+    "tiktok",
+    "instagram",
+    "x"
+  ],
+  "concept": {
+    "objective": "reach",
+    "pillar": "demo",
+    "format": "satisfying-demo",
+    "series": "Torture Tests",
+    "awareness_level": "problem-aware",
+    "angle": "A3 — warm water ruins long days",
+    "hook": {
+      "text": "24 HOURS IN A HOT CAR…",
+      "vo": "We left it in a hot car for a full day.",
+      "visual": "ice rattles as the bottle is shaken toward camera"
+    },
+    "beats": [
+      "0-1.5s hook: shake + rattle, text hook",
+      "1.5-5s proof: thermometer on dashboard reads 41°C",
+      "5-10s payoff: pour, ice cubes still clinking",
+      "10-13s CTA: send this to the friend who drinks warm water"
+    ],
+    "cta": "send",
+    "stepps": {
+      "social_currency": 1,
+      "triggers": 2,
+      "emotion": 1,
+      "public": 1,
+      "practical_value": 2,
+      "stories": 1
+    },
+    "send_test": "Gym-goer sends it to the friend who always complains their water gets warm"
+  },
+  "product_descriptor": "matte sage-green 750 ml stainless-steel bottle with white 'NOVA' wordmark and bamboo screw cap",
+  "shots": [
+    {
+      "id": "s1",
+      "purpose": "hook",
+      "keyframe": {
+        "mode": "multi-edit",
+        "model": "@keyframe",
+        "inputs": [
+          "assets/scenes/car_dashboard.png",
+          "assets/product/front_cutout.png"
+        ],
+        "prompt": "Place the bottle from image 2 upright on the sunny car dashboard in image 1, hard afternoon sunlight from the left, heat haze, shallow depth of field, shot on a phone",
+        "aspect_ratio": "9:16",
+        "resolution": "2K",
+        "n": 3,
+        "candidates": [],
+        "selected": null
+      },
+      "video": {
+        "model": "@i2v",
+        "prompt": "Vertical 9:16 close-up, handheld micro-jitter. 0-1s: a hand grabs the bottle and shakes it toward camera, ice rattles. 1-4s: slow push-in as the bottle settles back on the dashboard. The matte sage-green NOVA bottle stays rigid; label and logo unchanged. Hard afternoon light, photoreal phone footage.",
+        "negative_prompt": "morphing, warped label, extra fingers, distorted hands, melting, flicker, text, subtitles, watermark, logo changes",
+        "duration": "5s",
+        "resolution": "1080p",
+        "audio": false,
+        "takes": 2,
+        "end_image": null,
+        "extra": {},
+        "candidates": [],
+        "selected": null
+      },
+      "edit": {
+        "in": 0.0,
+        "out": 2.4,
+        "speed": 1.0,
+        "zoom": "punch",
+        "transition": {
+          "type": "cut"
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "purpose": "payoff",
+      "keyframe": {
+        "mode": "edit",
+        "model": "@keyframe",
+        "inputs": [
+          "assets/product/front.jpg"
+        ],
+        "prompt": "Same bottle being poured into a clear glass on a kitchen counter, ice cubes visible in the stream, condensation on the bottle, morning window light",
+        "n": 3
+      },
+      "video": {
+        "model": "@i2v_audio",
+        "prompt": "Vertical close-up, locked-off camera. 0-3s: water and ice cubes pour from the bottle into the glass, cubes clink. 3-5s: glass fills, condensation drips. Bottle shape, label and logo unchanged. Photoreal.",
+        "duration": "6s",
+        "resolution": "1080p",
+        "audio": true,
+        "takes": 2
+      },
+      "edit": {
+        "in": 0.3,
+        "out": 5.5,
+        "speed": 1.0,
+        "zoom": "push",
+        "transition": {
+          "type": "slideleft",
+          "duration": 0.15
+        }
+      }
+    }
+  ],
+  "voiceover": {
+    "enabled": true,
+    "model": "@tts",
+    "voice": "af_sky",
+    "speed": 1.05,
+    "offset": 0.1,
+    "volume": 1.0,
+    "script": "We left it in a hot car for a full day. Forty-one degrees on the dash. And the ice? Still there. Send this to the friend who drinks warm water.",
+    "file": null,
+    "words": null
+  },
+  "music": {
+    "file": null,
+    "volume": 0.25,
+    "start": 0,
+    "duck": true,
+    "fade_out": 1.2,
+    "generate": {
+      "model": "@music",
+      "prompt": "minimal upbeat electronic, bright plucks and claps, 112 bpm, energy lift at 6 s, instrumental",
+      "duration_seconds": 15,
+      "force_instrumental": true
+    }
+  },
+  "sfx": [
+    {
+      "file": null,
+      "at": "s2",
+      "offset": -0.1,
+      "volume": 0.7,
+      "generate": {
+        "model": "@sfx",
+        "prompt": "short airy whoosh transition, clean, no reverb tail",
+        "duration_seconds": 1
+      }
+    }
+  ],
+  "audio_mix": {
+    "keep_clip_audio": true,
+    "clip_audio_volume": 0.45,
+    "lufs": -14,
+    "true_peak": -1.5,
+    "lra": 11
+  },
+  "captions": {
+    "enabled": true,
+    "style": "highlight",
+    "font": "Anton",
+    "size": 104,
+    "primary": "#FFFFFF",
+    "highlight": "#FFE14D",
+    "words_per_chunk": 3,
+    "position": "lower",
+    "uppercase": true
+  },
+  "overlays": [
+    {
+      "type": "text",
+      "style": "hook",
+      "text": "24 HOURS IN A HOT CAR…",
+      "start": 0,
+      "end": 2.4
+    },
+    {
+      "type": "text",
+      "style": "label",
+      "text": "AI-generated visuals",
+      "start": 0,
+      "end": 99
+    },
+    {
+      "type": "image",
+      "file": "assets/brand/logo.png",
+      "position": "top-right",
+      "width": 170,
+      "start": 10,
+      "end": 99,
+      "opacity": 0.95
+    }
+  ],
+  "end_card": null,
+  "loop": false,
+  "cover": {
+    "time": 0.6,
+    "text": "ICE AFTER\\N24 HOURS?"
+  },
+  "packaging": {
+    "keywords": [
+      "insulated water bottle",
+      "ice test"
+    ],
+    "tiktok": {
+      "caption": "insulated water bottle ice test: 24 hours in a hot car",
+      "hashtags": [
+        "#insulatedbottle",
+        "#icetest",
+        "#gymtok"
+      ],
+      "post_time": "Tue 19:00 local",
+      "use_nomusic": false
+    },
+    "instagram": {
+      "caption": "Insulated water bottle vs. a full day in a hot car. Send this to the friend who drinks warm water.",
+      "hashtags": [
+        "#insulatedbottle",
+        "#hydration",
+        "#gymlife"
+      ],
+      "alt_text": "Green steel bottle on a sunny car dashboard, then pouring water with ice into a glass",
+      "trial_reel": true,
+      "collaborators": []
+    },
+    "x": {
+      "text": "We left it in a hot car for 24 hours. The ice survived. Would yours?",
+      "hashtags": [],
+      "reply": "Tested at 41°C on the dash. Full test details in our pinned post."
+    }
+  },
+  "claims": [
+    {
+      "claim": "keeps ice for 24 hours",
+      "evidence": "brand lab test PDF (assets/brand/ice-test.pdf)",
+      "status": "substantiated"
+    }
+  ],
+  "disclosure": {
+    "ai_generated": true,
+    "paid_partnership": false,
+    "on_screen_label": "AI-generated visuals"
+  }
+}

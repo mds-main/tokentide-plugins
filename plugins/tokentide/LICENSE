@@ -1,0 +1,49 @@
+Tokentide Plugin License
+
+Copyright (c) 2026 Tokentide. All rights reserved.
+
+This licence covers the Tokentide plugin for Claude (the "Plugin"): the manifests,
+configuration, documentation, skills, scripts, templates and other files in this
+repository, except the third-party components listed in section 6.
+
+1. Licence. If you have a Tokentide account and use the Tokentide service under the
+   Tokentide Terms (https://tokentide.app/legal/terms), Tokentide grants you a limited,
+   non-exclusive, non-transferable, non-sublicensable and revocable licence to
+   download, install and run the Plugin, and to modify it for your own internal use,
+   solely to use the Tokentide service.
+
+2. Restrictions. You may not, and may not let others:
+   a. use the Plugin, or any part of it or any work derived from it, with any service
+      other than the Tokentide service, including to call Venice or any other model
+      provider directly;
+   b. copy, distribute, publish, sublicense, sell, rent or otherwise make the Plugin,
+      or any work derived from it, available to anyone else, except by pointing them
+      to this repository or to Tokentide's plugin marketplace;
+   c. remove or change any copyright, licence or trademark notice in the Plugin.
+
+3. What you create. This licence does not restrict the content you create with the
+   Plugin. Your inputs and outputs are governed by the Tokentide Terms.
+
+4. Trademarks. The Tokentide name, logo and icon (including assets/icon.png) are
+   trademarks of Tokentide. This licence grants no right to use them, except to
+   identify the unmodified Plugin.
+
+5. Suggestions and contributions. If you send Tokentide suggestions, issues or code
+   for the Plugin, you grant Tokentide a perpetual, worldwide, royalty-free and
+   irrevocable licence to use, modify and distribute them for any purpose.
+
+6. Third-party components. The fonts in skills/viral-product-video/assets/fonts (Anton and Montserrat) are
+   licensed under the SIL Open Font License 1.1; see the OFL-*.txt files next to them.
+   That licence, not this one, governs those fonts.
+
+7. Termination. This licence ends automatically if you breach it or when your
+   Tokentide account is closed. When it ends, stop using the Plugin and delete your
+   copies.
+
+8. No warranty. To the extent the law allows, the Plugin is provided "as is", without
+   warranty of any kind, and Tokentide is not liable for any damages arising from its
+   use. Nothing in this licence limits the rights you have as a consumer under the law
+   that applies to you.
+
+9. Governing law. This licence is governed by the same law, and disputes go to the same
+   courts, as the Tokentide Terms.
