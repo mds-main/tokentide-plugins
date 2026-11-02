@@ -4,7 +4,7 @@
   init_project.py "Acme Bottle" [--root projects] [--budget-usd 50] [--platforms tiktok,instagram,x]
                   [--languages en] [--markets US] [--url https://acme.com/bottle]
 
-Layout: research/ strategy/ briefs/ assets/{product,brand,scenes,music,sfx}/ keyframes/ clips/ audio/
+Layout: research/ strategy/ briefs/ assets/{product,brand,fonts,scenes,music,sfx}/ keyframes/ clips/ audio/
         captions/ renders/ qa/ post/ logs/  + project.json (budget cap, platforms, languages)
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import common
 
-DIRS = ["research", "strategy", "briefs", "assets/product", "assets/brand", "assets/scenes", "assets/music",
+DIRS = ["research", "strategy", "briefs", "assets/product", "assets/brand", "assets/fonts", "assets/scenes", "assets/music",
         "assets/sfx", "keyframes", "clips", "audio", "captions", "renders", "qa", "post", "logs"]
 
 

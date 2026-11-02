@@ -6,10 +6,12 @@ Codex to your Tokentide account and adds a skill that turns a product into short
 
 ## What's inside
 
-- **Tokentide connector** (`https://api.tokentide.app/mcp`). Your agent can explain how Tokentide
+- **Tokentide connector** (`https://api.tokentide.app/mcp/studio`). Your agent can explain how Tokentide
   pricing works (tide prices, Low Tide, quotes, the daily reset, job cutoffs), read the live market,
   estimate and quote costs before you spend, browse the model catalog, show your balance, caps and
-  usage, and run chat, embeddings and decision requests under your own price caps.
+  usage, run chat, embeddings and decision requests under your own price caps, generate and edit
+  images, create video and music jobs (finished files come back as download links), and link the video
+  skill's scripts to your account.
 - **Viral product video skill** (`skills/viral-product-video`). Your agent researches a product, writes
   a virality strategy, then plans, generates, edits, checks and packages vertical videos for TikTok,
   Instagram Reels and X with Tokentide's image, video, voice and music models and FFmpeg.
@@ -42,17 +44,22 @@ settings) describe it to ChatGPT and Codex. The skill is shared.
    Or open `/plugins` in Codex, or **Plugins** in the ChatGPT desktop app, and install **Tokentide** from
    the `tokentide` marketplace. Full instructions: https://tokentide.app/chatgpt
 
-2. Connect the connector. Your app opens a Tokentide sign-in page (in Codex CLI, run
-   `codex mcp login tokentide`); you choose a daily spending cap and a privacy mode, and Tokentide
+2. Sign in once. Your app opens a Tokentide sign-in page (in Codex CLI, run `codex mcp login tokentide`;
+   in the Claude Code terminal, `/mcp`); you choose a daily spending cap and a privacy mode, and Tokentide
    creates an API key just for this connection. Revoke it any time under **Dashboard > API keys**.
 3. Ask, for example: "How does Tokentide pricing work?", "When is the cheapest time today to run 2
    million tokens on the best coding model?", "What did I spend this week?", or "Make our new water
    bottle go viral on TikTok, Reels and X".
 
-The video skill runs Python scripts in your agent's code environment, so it needs code execution,
-network access to `api.tokentide.app`, FFmpeg, and an API key in `TOKENTIDE_API_KEY` that you set
-yourself (privacy mode `all` or `private_text`, for the anonymized edit, video and music models). The
-skill never asks you to paste the key into the chat. Its README lists every requirement.
+That sign-in is the only step for you. When the video skill first runs its Python scripts, your agent
+links them to the connection itself (the connector's `link_local_scripts` tool returns a one-time code,
+which `scripts/auth.py exchange` swaps for a key stored in your config folder, readable by you only) and
+installs FFmpeg for the plugin if it is missing (`scripts/doctor.py --fix`, a pinned, checksum-verified
+build). You never create, copy or paste a key. The scripts' key appears under the connection in your
+dashboard, with the same privacy mode and caps, and revoking the connection revokes it too. Choose
+privacy mode `all` (or `private_text`) when you connect: the edit, video and music models the skill
+uses are mostly anonymized. In apps without a shell, the connector's image, video and music tools do the
+generation. The skill's README lists every requirement.
 
 ## What data it sends
 
@@ -60,8 +67,9 @@ skill never asks you to paste the key into the chat. Its README lists every requ
   the filters of a usage report) to Tokentide's API over HTTPS, authenticated with the connection's key.
   Model requests go on to Venice and, for anonymized models, to the model's provider.
 - **Video skill:** the scripts send prompts, product photos, keyframes, voice-over text and audio to
-  Tokentide's API with your key, and your agent's web search gathers public information about the
-  product. Generated files stay in your project folder.
+  Tokentide's API with their key, and your agent's web search gathers public information about the
+  product. Generated files stay in your project folder. Linking sends a one-time code and your computer's
+  name (shown in the key's name in your dashboard); the key never appears in the chat or in logs.
 - Tokentide never stores prompts, inputs or outputs; it keeps account data, request metadata and the
   billing ledger. For Private models, Venice's privacy policy says Venice retains nothing either. Anonymized models' providers may
   retain content under their own policies, without your identity. See

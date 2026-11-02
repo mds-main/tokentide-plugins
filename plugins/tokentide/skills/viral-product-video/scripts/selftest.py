@@ -4,7 +4,11 @@
 The mock reproduces Tokentide's documented behaviour: /v1 paths (+ /api/v1 alias), Bearer tt_ keys,
 OpenAI-style error envelope, charge headers, a 4.5 MB body limit, Retry-After 429s, video jobs with no
 download URL (file returned by retrieve, deleted after delivery unless delete_media_on_completion=false),
-/complete taking only queue_id, queued music/SFX, /account, /market and /status.
+/complete taking only queue_id, queued music/SFX, /account, /market, /status, quotes that reject values a
+model doesn't list (naming the parameter and the accepted values), and the plugin sign-in endpoints
+(/api/plugin/*: link-code exchange, device flow, rotate, revoke) with keys grouped under a connection, so
+revoking the connection ends the scripts key. The run starts with no key at all and links one the way an
+agent does (`link_local_scripts` → `auth.py exchange`), in a throwaway config folder.
 
   selftest.py [--keep] [--workdir DIR]
 """
@@ -31,7 +35,36 @@ sys.path.insert(0, str(HERE))
 import common  # noqa: E402
 
 MEDIA = {}
-STATE = {"jobs": {}, "queue_calls": 0, "image_calls": 0, "idem": set(), "spent": 0.0}
+STATE = {"jobs": {}, "queue_calls": 0, "image_calls": 0, "idem": set(), "spent": 0.0,
+         # Sign-in: link codes the connector minted, live keys (key -> its connection), revoked connections,
+         # device-flow requests.
+         "codes": {}, "keys": {}, "revoked_connections": set(), "devices": {}}
+
+
+def mint_link_code(connection="conn_1") -> str:
+    """What the connector's link_local_scripts tool does: a single-use code bound to the connection."""
+    code = "ttlink_" + uuid.uuid4().hex
+    STATE["codes"][code] = {"connection": connection, "exp": time.time() + 300}
+    return code
+
+
+def issue_key(connection, origin) -> dict:
+    key = "tt_test_" + uuid.uuid4().hex + uuid.uuid4().hex[:8]
+    STATE["keys"][key] = {"connection": connection, "origin": origin}
+    return {"object": "plugin_key", "key": key, "key_id": uuid.uuid4().hex[:12], "masked": "tt_test_…" + key[-4:],
+            "name": "Local scripts (plugin) · Claude Code · selftest", "privacy_mode": "all", "daily_cap_usd": "40",
+            "origin": origin}
+
+
+def revoke_connection(connection="conn_1") -> None:
+    """Revoking the connector's key in the dashboard revokes the scripts keys linked through it."""
+    STATE["revoked_connections"].add(connection)
+    for k in [k for k, v in STATE["keys"].items() if v["connection"] == connection]:
+        del STATE["keys"][k]
+
+
+def reconnect(connection="conn_1") -> None:
+    STATE["revoked_connections"].discard(connection)
 MULT = {"standard": "0.709522", "lowtide": "0.496665"}
 
 
@@ -156,10 +189,48 @@ class Mock(BaseHTTPRequestHandler):
 
     def _auth(self):
         a = self.headers.get("Authorization") or ""
-        if not a.startswith("Bearer tt_"):
-            self._err(401, "invalid_api_key", "Missing or invalid API key")
+        if not a.startswith("Bearer tt_") or a[len("Bearer "):] not in STATE["keys"]:
+            self._err(401, "invalid_api_key", "Missing, invalid or revoked API key")
             return False
         return True
+
+    def _plugin(self, p, raw):
+        """/api/plugin/* like the web app: JSON only, no-store, keys returned once."""
+        if not (self.headers.get("Content-Type") or "").startswith("application/json"):
+            return self._send(415, {"error": "invalid_request", "message": "Send a JSON body (application/json)."})
+        b = json.loads(raw or b"{}")
+        bearer = (self.headers.get("Authorization") or "")[len("Bearer "):]
+        if p == "/api/plugin/exchange":
+            c = STATE["codes"].pop(b.get("code"), None)
+            if not c or c["exp"] < time.time():
+                return self._send(400, {"error": "invalid_code", "message": "This link code was already used or has expired."})
+            if c["connection"] in STATE["revoked_connections"]:
+                return self._send(403, {"error": "connection_revoked", "message": "The connection was revoked."})
+            return self._send(200, issue_key(c["connection"], "plugin_scripts"), headers={"Cache-Control": "no-store"})
+        if p == "/api/plugin/device":
+            dc, uc = "ttdev_" + uuid.uuid4().hex + uuid.uuid4().hex[:11], "BCDF-GHJK"
+            STATE["devices"][dc] = {"polls": 0}
+            return self._send(200, {"device_code": dc, "user_code": uc, "verification_uri": f"http://127.0.0.1/link",
+                                    "verification_uri_complete": f"http://127.0.0.1/link?code={uc}",
+                                    "expires_in": 600, "interval": 1})
+        if p == "/api/plugin/device/token":
+            d = STATE["devices"].get(b.get("device_code"))
+            if not d:
+                return self._send(400, {"error": "expired_token", "message": "The sign-in request expired."})
+            d["polls"] += 1
+            if d["polls"] < 2:  # the user approves on the website between the first and second poll
+                return self._send(400, {"error": "authorization_pending", "message": "Waiting for the approval."})
+            del STATE["devices"][b["device_code"]]
+            return self._send(200, issue_key("device_1", "plugin_device"))
+        if p in ("/api/plugin/keys/rotate", "/api/plugin/keys/revoke"):
+            k = STATE["keys"].get(bearer)
+            if not k:
+                return self._send(401, {"error": "invalid_api_key", "message": "Send a live plugin key."})
+            del STATE["keys"][bearer]
+            if p.endswith("/revoke"):
+                return self._send(200, {"object": "plugin_key", "revoked": True})
+            return self._send(200, issue_key(k["connection"], k["origin"]))
+        return self._send(404, {"error": "not_found", "message": p})
 
     def _charge(self, list_usd):
         m = float(MULT["lowtide"] if self.headers.get("X-Tokentide-Lane") == "lowtide" else MULT["standard"])
@@ -195,6 +266,8 @@ class Mock(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(n) if n else b""
+        if self.path.startswith("/api/plugin/"):
+            return self._plugin(self.path, raw)
         if not self._auth():
             return
         if len(raw) > 4_500_000:
@@ -218,6 +291,13 @@ class Mock(BaseHTTPRequestHandler):
             if not b.get("image"):
                 return self._err(400, "invalid_request", "image is required", param="image")
             return self._send(200, MEDIA["img.png"], "image/png", charge=self._charge(0.04))
+        if p in ("/video/quote", "/audio/quote") and b.get("model") and b.get("resolution"):
+            # Like Tokentide: a value the model doesn't list is refused before Venice, naming the parameter.
+            m = next((x for x in MODELS if x["id"] == b["model"]), None)
+            ress = ((m or {}).get("model_spec") or {}).get("constraints", {}).get("resolutions")
+            if ress and b["resolution"] not in ress:
+                return self._err(400, "invalid_request", f"resolution must be one of {', '.join(ress)} for "
+                                 f"`{b['model']}` (values are case-sensitive).", param="resolution")
         if p in ("/video/quote", "/audio/quote"):
             kind = p.split("/")[1]
             # Venice's quote schemas reject unknown fields, and Tokentide forwards free quotes as sent.
@@ -357,23 +437,62 @@ def main():
     make_media(media)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), Mock)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
+    config = work / "_config"  # a throwaway key-file folder: the real ~/.config/tokentide is never touched
     env = {**os.environ, "TOKENTIDE_BASE_URL": f"http://127.0.0.1:{srv.server_port}/v1",
-           "TOKENTIDE_API_KEY": "tt_test_mock", "TOKENTIDE_IMAGE_RPM": "30"}
-    env.pop("TOKENTIDE_API_KEY_FILE", None)
+           "TOKENTIDE_CONFIG_DIR": str(config), "TOKENTIDE_IMAGE_RPM": "30"}
+    for k in ("TOKENTIDE_API_KEY", "TOKENTIDE_API_KEY_FILE", "TOKENTIDE_SITE_URL"):
+        env.pop(k, None)
     root = work / "projects" / "selftest-bottle"
     spec = root / "briefs" / "v01.json"
     results = []
 
-    def run(name, *args, ok=(0,)):
+    def run(name, *args, ok=(0,), expect=(), absent=()):
+        """Runs a script; passes when the exit code is in `ok`, every `expect` text is in its output and no
+        `absent` text is (e.g. a key that must never be printed)."""
         t0 = time.time()
         r = subprocess.run([sys.executable, str(HERE / args[0]), *map(str, args[1:])], env=env, cwd=work,
                            capture_output=True, text=True)
-        good = r.returncode in ok
+        out = r.stdout + r.stderr
+        missing = [e for e in expect if e not in out] + [f"(must not print) {x[:12]}…" for x in absent if x in out]
+        good = r.returncode in ok and not missing
         results.append((good, name, time.time() - t0))
         print(f"{'PASS' if good else 'FAIL'}  {name}  ({time.time() - t0:.1f}s)")
         if not good:
-            print((r.stdout + r.stderr)[-2500:])
+            print((f"missing: {missing}\n" if missing else "") + out[-2500:])
         return r
+
+    def check(name, cond, detail=""):
+        results.append((bool(cond), name, 0.0))
+        print(f"{'PASS' if cond else 'FAIL'}  {name}" + (f"  — {detail}" if detail and not cond else ""))
+
+    def file_key():
+        lines = [x for x in (config / "api_key").read_text(encoding="utf-8").splitlines() if x and not x.startswith("#")]
+        return lines[0] if lines else ""
+
+    # Sign in once: no key at all -> the scripts tell the agent what to run -> one exchange links the scripts.
+    run("no key yet: scripts tell the agent how to link", "doctor.py", "--offline", ok=(1,),
+        expect=("link_local_scripts", "auth.py exchange --code", "auth.py login", "never ask the user"))
+    code = mint_link_code()
+    r = run("link: auth.py exchange --code (from link_local_scripts)", "auth.py", "exchange", "--code", code,
+            expect=("linked: key …", "privacy mode all", "daily cap $40"))
+    linked = file_key()
+    check("key file holds a live key, owner-only", linked in STATE["keys"] and
+          (os.name == "nt" or (config / "api_key").stat().st_mode & 0o077 == 0), oct((config / "api_key").stat().st_mode))
+    check("the key never reaches the output", linked and linked not in r.stdout + r.stderr)
+    run("a link code works once", "auth.py", "exchange", "--code", code, ok=(1,),
+        expect=("already used or has expired", "link_local_scripts"))
+    run("auth status (masked key, accepted)", "auth.py", "status", expect=(f"key …{linked[-4:]}", "accepted"),
+        absent=(linked,))
+
+    # common.probe without ffprobe (the plugin-managed FFmpeg ships none) reads `ffmpeg -i` correctly.
+    for name, want in (("video.mp4", {"vcodec": "h264", "width": 720, "height": 1280, "pix_fmt": "yuv420p",
+                                      "has_audio": True, "acodec": "aac", "sample_rate": 48000, "channels": 1}),
+                       ("music.mp3", {"has_audio": True, "acodec": "mp3", "vcodec": None})):
+        err = subprocess.run([common.require_ffmpeg(), "-hide_banner", "-nostdin", "-i", str(media / name)],
+                             capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
+        got = common.parse_ffmpeg_info(err, {"vcodec": None, "has_audio": False})
+        bad = {k: got.get(k) for k, v in want.items() if got.get(k) != v}
+        check(f"probe without ffprobe: {name}", not bad and got.get("duration", 0) > 1, f"wrong: {bad}")
 
     run("init project", "init_project.py", "Selftest Bottle", "--root", work / "projects", "--budget-usd", "20")
     ff(["-f", "lavfi", "-i", "testsrc2=size=1200x1600:rate=1", "-frames:v", "1", root / "assets/product/front.jpg"])
@@ -412,6 +531,12 @@ def main():
     run("qa vision (mock)", "qa.py", "vision", "--images", root / "keyframes/v01_s1_k1.png", "--reference",
         root / "assets/product/front.jpg")
     run("package", "package.py", "--spec", spec)
+    run("models show: accepted values", "models.py", "show", "minimax-h3-max-image-to-video", "--cache",
+        root / "models.json", expect=("Accepted values", "resolution: 768p, 1080p", "duration: 6s, 10s"))
+    run("quote: a rejected value names the parameter and the accepted values", "video.py", "quote", "--model",
+        "minimax-h3-max-image-to-video", "--duration", "6s", "--resolution", "720p", "--models", root / "models.json",
+        ok=(1,), expect=("resolution must be one of 768p, 1080p", "rejected: resolution=\"720p\"",
+                         "accepted: 768p, 1080p"))
     run("metrics template", "metrics.py", "template", "--out", root / "logs/perf_test.csv")
     with open(root / "logs/perf_test.csv", "a", encoding="utf-8") as fh:
         fh.write("tt_002,v02,tiktok,2026-11-04 19:00,72,12,900,880,3.1,9,31,20,2,1,,3,1,10,,B-callout,myth-bust,edu,\n")
@@ -419,6 +544,24 @@ def main():
     run("metrics analyze", "metrics.py", "analyze", "--csv", root / "logs/perf_test.csv")
     r = run("budget (exact charges + live account)", "budget.py", "--project", root, "--live")
     print("\n".join(r.stdout.splitlines()[:4]))
+
+    # Rotation, revocation through the connection, re-linking with one approval, and the device flow.
+    old_key = file_key()
+    run("auth rotate (new key, old one ends)", "auth.py", "rotate", expect=("rotated: key …",), absent=(old_key,))
+    check("rotation replaced the key", file_key() != old_key and old_key not in STATE["keys"] and file_key() in STATE["keys"])
+    revoke_connection()
+    run("connection revoked: scripts fail with what the agent does", "models.py", "list", "--type", "video", ok=(1,),
+        expect=("revoked", "link_local_scripts", "reconnect"))
+    run("re-linking through a revoked connection is refused", "auth.py", "exchange", "--code", mint_link_code(),
+        ok=(1,), expect=("was revoked", "reconnect the connector"))
+    reconnect()
+    run("after reconnecting: one exchange links again", "auth.py", "exchange", "--code", mint_link_code(),
+        expect=("linked: key …",))
+    run("scripts work again", "models.py", "list", "--type", "video")
+    run("logout --revoke", "auth.py", "logout", "--revoke", expect=("revoked: key …", "removed"))
+    run("no connector: auth.py login (device flow, one approval)", "auth.py", "login", "--no-browser", "--wait", "30",
+        expect=("BCDF-GHJK", "linked: key …"))
+    run("signed in through the device flow", "auth.py", "status", expect=("accepted",))
     srv.shutdown()
     master = root / "renders/v01_master.mp4"
     if master.exists():

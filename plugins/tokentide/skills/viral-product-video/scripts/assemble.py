@@ -152,11 +152,13 @@ def join(segs, out: Path):
     return starts, common.probe(out)["duration"]
 
 
-def prepare_fonts(tmp: Path) -> str:
+def prepare_fonts(tmp: Path, root=None) -> str:
+    """Copies the fonts libass may use into the render folder: the project's brand fonts (P/assets/fonts/,
+    then font files in P/assets/brand/) and the bundled ones."""
     fd = tmp / "fonts"
     if not fd.exists():
         fd.mkdir()
-        for f in common.FONTS_DIR.glob("*.[ot]tf"):
+        for f in common.font_files(root):
             shutil.copy(f, fd / f.name)
     return "fonts"
 
@@ -183,7 +185,7 @@ def render_video(spec, joined: Path, ass: Path | None, out: Path, tmp: Path, dur
         cur, idx = f"[b{idx}]", idx + 1
     if ass and Path(ass).exists():
         shutil.copy(ass, tmp / "captions.ass")
-        chains.append(f"{cur}ass=captions.ass:fontsdir={prepare_fonts(tmp)}[sub]")
+        chains.append(f"{cur}ass=captions.ass:fontsdir={prepare_fonts(tmp, spec.root)}[sub]")
         cur = "[sub]"
     chains.append(f"{cur}format=yuv420p[vout]")
     preset, crf = ("veryfast", "23") if draft else ("slow", "18")
@@ -292,7 +294,7 @@ def make_cover(spec, src_video: Path, out_dir: Path, tmp: Path):
         body = text.replace("\n", "\\N")
         (tmp / "cover.ass").write_text(captions.header(cfg) + captions.dialogue(0, 10, "Title", body, layer=1) + "\n",
                                        encoding="utf-8")
-        common.ffmpeg(["-y", "-i", "cover_frame.png", "-vf", f"ass=cover.ass:fontsdir={prepare_fonts(tmp)}",
+        common.ffmpeg(["-y", "-i", "cover_frame.png", "-vf", f"ass=cover.ass:fontsdir={prepare_fonts(tmp, spec.root)}",
                        "-frames:v", "1", "-q:v", "2", out.resolve()], cwd=tmp)
     else:
         common.ffmpeg(["-y", "-i", frame, "-frames:v", "1", "-q:v", "2", out])

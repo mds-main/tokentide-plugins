@@ -1,9 +1,11 @@
 """Dependency-free client for the Tokentide API — a Venice-compatible proxy with tide pricing.
 
 Base URL: https://api.tokentide.app/v1 (production); env TOKENTIDE_BASE_URL overrides it.
-Key lookup: env TOKENTIDE_API_KEY, file at TOKENTIDE_API_KEY_FILE, ./.tokentide_api_key,
-  ~/.config/tokentide/api_key (plain key or a TOKENTIDE_API_KEY=... line). Keys start with tt_live_ /
+Key lookup: env TOKENTIDE_API_KEY, file at TOKENTIDE_API_KEY_FILE, ./.tokentide_api_key, then the key file
+  that `auth.py` writes: ~/.config/tokentide/api_key ($XDG_CONFIG_HOME/tokentide when set; Windows
+  %APPDATA%\\tokentide\\api_key). Plain key or a TOKENTIDE_API_KEY=... line. Keys start with tt_live_ /
   tt_test_ (test keys only work on preview/staging deployments and return mock output). Venice keys are rejected.
+  With no key, scripts print what the agent runs to link one (`auth.py`); the user never pastes a key.
 Optional env: TOKENTIDE_LANE=standard|lowtide · TOKENTIDE_MAX_MULTIPLIER=0.6 · TOKENTIDE_IMAGE_RPM=2
 
 Tokentide specifics handled here: 4.5 MB direct request bodies, OpenAI-style error envelope
@@ -25,11 +27,15 @@ import tempfile
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
 
 import common
+
+SCRIPTS_DIR = Path(__file__).resolve().parent
+PY = "python" if os.name == "nt" else "python3"   # how the instructions below name the interpreter
 
 DEFAULT_BASE = "https://api.tokentide.app/v1"   # production; kept in sync with the plugin's .mcp.json
 MAX_BODY = 4_500_000      # Tokentide's direct body limit (Venice allows 25 MB)
@@ -44,7 +50,7 @@ _PROJECT_ROOT = None
 _LANE = None
 
 HINTS = {
-    "invalid_api_key": "Key missing/invalid/revoked. Tokentide keys start with tt_live_ (prod) or tt_test_ (preview/staging only); Venice keys don't work.",
+    "invalid_api_key": "Key invalid or revoked. Tokentide keys start with tt_live_ (prod) or tt_test_ (preview/staging only); Venice keys don't work.",
     "insufficient_balance": "Top up the Tokentide balance (or lower the job size).",
     "spend_limit_reached": "A spend cap set in the Tokentide dashboard was reached; raise it or wait for the period to reset.",
     "model_not_allowed": "The key's privacy mode doesn't allow this model. Background removal, most premium image-edit and video models and every music model are Anonymized: create a key with privacy mode 'all' (or 'private_text').",
@@ -65,12 +71,20 @@ STATUS_HINTS = {400: "Invalid parameter for this model (models.py show <id>).", 
 
 
 class APIError(Exception):
-    def __init__(self, status, message, code=None, param=None, request_id=None, body=b"", headers=None):
+    def __init__(self, status, message, code=None, param=None, request_id=None, body=b"", headers=None, relink=False):
         self.status, self.message, self.code, self.param = status, message, code, param
         self.request_id, self.body, self.headers = request_id, body, headers or {}
         hint = HINTS.get(code or "") or STATUS_HINTS.get(status, "")
         rid = f" (request {request_id})" if request_id else ""
-        super().__init__(f"HTTP {status} {code or ''}: {message}{rid}" + (f"\n  hint: {hint}" if hint else ""))
+        text = f"HTTP {status} {code or ''}: {message}{rid}" + (f"\n  hint: {hint}" if hint else "")
+        if relink:  # a linked key stops working when it, or the connection it was linked through, is revoked
+            env = relink == "env TOKENTIDE_API_KEY"
+            text += "\n" + link_instructions(
+                "The key in TOKENTIDE_API_KEY was rejected. It takes precedence over the key file auth.py writes: "
+                "unset it to use a linked key." if env else
+                "The scripts' Tokentide key was revoked or is no longer valid (revoking the Tokentide connection "
+                "also revokes the scripts key linked through it).")
+        super().__init__(text)
 
 
 VeniceError = APIError  # name kept so shared code paths read the same
@@ -82,32 +96,108 @@ def base_url() -> str:
     return DEFAULT_BASE
 
 
-def get_api_key(required: bool = True) -> str:
-    key = os.environ.get("TOKENTIDE_API_KEY", "").strip()
-    if not key:
-        cands = []
-        if os.environ.get("TOKENTIDE_API_KEY_FILE"):
-            cands.append(Path(os.environ["TOKENTIDE_API_KEY_FILE"]).expanduser())
-        cands += [Path.cwd() / ".tokentide_api_key", Path.home() / ".config" / "tokentide" / "api_key"]
-        for c in cands:
-            try:
-                if not c.is_file():
-                    continue
-                for line in c.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if "=" in line and line.split("=", 1)[0].strip().upper().endswith("TOKENTIDE_API_KEY"):
-                        line = line.split("=", 1)[1].strip().strip("'\"")
-                    key = line
-                    break
-            except OSError:
+def site_url() -> str:
+    """Where the plugin's sign-in endpoints (/api/plugin/*) are called: the API's own origin, which serves them too,
+    so a sandbox only has to allow api.tokentide.app. TOKENTIDE_SITE_URL overrides it."""
+    if os.environ.get("TOKENTIDE_SITE_URL"):
+        return os.environ["TOKENTIDE_SITE_URL"].rstrip("/")
+    u = urllib.parse.urlsplit(base_url())
+    return f"{u.scheme}://{u.netloc}"
+
+
+def secure_url(url: str) -> bool:
+    """Keys and codes travel over TLS only; plain http is allowed for this machine (the self-test's mock)."""
+    u = urllib.parse.urlsplit(url)
+    return u.scheme == "https" or (u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost", "::1"))
+
+
+def config_dir() -> Path:
+    """The folder of the key file that auth.py writes (TOKENTIDE_CONFIG_DIR overrides it)."""
+    if os.environ.get("TOKENTIDE_CONFIG_DIR"):
+        return Path(os.environ["TOKENTIDE_CONFIG_DIR"]).expanduser()
+    if os.name == "nt":
+        return Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "tokentide"
+    if os.environ.get("XDG_CONFIG_HOME"):
+        return Path(os.environ["XDG_CONFIG_HOME"]) / "tokentide"
+    return Path.home() / ".config" / "tokentide"
+
+
+def key_file() -> Path:
+    return config_dir() / "api_key"
+
+
+def _read_key_file(c: Path) -> str:
+    try:
+        if not c.is_file():
+            return ""
+        for line in c.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
                 continue
-            if key:
-                break
+            if "=" in line and line.split("=", 1)[0].strip().upper().endswith("TOKENTIDE_API_KEY"):
+                line = line.split("=", 1)[1].strip().strip("'\"")
+            return line
+    except OSError:
+        pass
+    return ""
+
+
+def key_source():
+    """(key, where it came from) — the first of env TOKENTIDE_API_KEY, TOKENTIDE_API_KEY_FILE,
+    ./.tokentide_api_key and the auth.py key file. ("", None) when there is none."""
+    key = os.environ.get("TOKENTIDE_API_KEY", "").strip()
+    if key:
+        return key, "env TOKENTIDE_API_KEY"
+    cands = []
+    if os.environ.get("TOKENTIDE_API_KEY_FILE"):
+        cands.append(Path(os.environ["TOKENTIDE_API_KEY_FILE"]).expanduser())
+    legacy = Path.home() / ".config" / "tokentide" / "api_key"
+    cands += [Path.cwd() / ".tokentide_api_key", key_file()] + ([legacy] if legacy != key_file() else [])
+    for c in cands:
+        key = _read_key_file(c)
+        if key:
+            return key, str(c)
+    return "", None
+
+
+def host() -> str:
+    """The agent app running the scripts, for host-specific advice: claude-code, codex or unknown."""
+    if os.environ.get("CLAUDECODE") or os.environ.get("CLAUDE_CODE_ENTRYPOINT"):
+        return "claude-code"
+    if any(k.startswith("CODEX_") for k in os.environ):
+        return "codex"
+    return "unknown"
+
+
+def reconnect_hint(h: str | None = None) -> str:
+    """How the user signs in to the connector again, for the app the agent runs in (mirrors the connector)."""
+    h = h or host()
+    if h == "claude-code":
+        return ("in the Claude desktop app, open Customize > Connectors (or the Tokentide plugin's Connectors tab) and "
+                "choose Connect; in the Claude Code terminal, run /mcp and choose tokentide.")
+    if h == "codex":
+        return "run `codex mcp login tokentide` (or sign in to Tokentide in the app's plugin settings)."
+    return "sign in to Tokentide again, once, in the app's connector or MCP server settings."
+
+
+def link_instructions(reason: str) -> str:
+    """What the agent does when the scripts have no usable key. Written for the agent: the user only
+    approves in the browser, at most once, and never copies or pastes a key."""
+    auth = SCRIPTS_DIR / "auth.py"
+    return (f"{reason}\n"
+            "Agent, fix this yourself; never ask the user for a key or to paste one into the chat:\n"
+            "  1. If the Tokentide connector's tools are available, call `link_local_scripts` and run the command it "
+            f"returns: {PY} {auth} exchange --code <code>\n"
+            "     If the connector's tools fail too (the connection was revoked), ask the user to reconnect it: "
+            f"{reconnect_hint()} Then call `link_local_scripts` again.\n"
+            f"  2. Without the connector, run: {PY} {auth} login  (the user approves once in the browser).\n"
+            "Then re-run this command.")
+
+
+def get_api_key(required: bool = True) -> str:
+    key, _ = key_source()
     if not key and required:
-        raise SystemExit("TOKENTIDE_API_KEY not found. Set the env var, or TOKENTIDE_API_KEY_FILE, or ./.tokentide_api_key "
-                         "(keys: Tokentide dashboard). Run scripts/doctor.py.")
+        raise SystemExit(link_instructions("No Tokentide key is linked for the plugin's scripts yet."))
     return key
 
 
@@ -224,8 +314,11 @@ def _parse_error(body: bytes, headers: dict):
 def request(method, path, json_body=None, *, data=None, content_type=None, timeout=300, retries=5,
             auth=True, headers=None, max_wait=120) -> Response:
     url = path if path.startswith("http") else f"{base_url()}/{path.lstrip('/')}"
-    hdrs = {"User-Agent": "tokentide-video-skill/1.0", "Accept": "*/*"}
+    hdrs = {"User-Agent": "tokentide-video-skill/1.2", "Accept": "*/*"}
     if auth:
+        if not secure_url(url):
+            raise APIError(0, f"Refusing to send the Tokentide key over plain http ({url.split('?')[0][:80]}). "
+                              "Use an https TOKENTIDE_BASE_URL.")
         hdrs["Authorization"] = f"Bearer {get_api_key()}"
     short = path if not path.startswith("http") else re.sub(r"\?.*", "", path)[:80]
     paid = method == "POST" and any(short.startswith(p) for p in PAID_PREFIXES)
@@ -248,7 +341,7 @@ def request(method, path, json_body=None, *, data=None, content_type=None, timeo
     for attempt in range(retries + 1):
         req = urllib.request.Request(url, data=payload, method=method, headers=hdrs)
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with common.urlopen(req, timeout=timeout) as r:
                 return Response(r.status, {k.lower(): v for k, v in r.headers.items()}, r.read())
         except urllib.error.HTTPError as e:
             body = e.read() or b""
@@ -270,6 +363,9 @@ def request(method, path, json_body=None, *, data=None, content_type=None, timeo
                 common.log(f"[tokentide] {method} {short} -> HTTP {e.code} {code or ''}; retry {attempt + 1}/{retries} in {w:.0f}s")
                 time.sleep(w)
                 continue
+            if e.code == 401 and auth:
+                raise APIError(401, msg, code or "invalid_api_key", param, rid, body, h,
+                               relink=key_source()[1] or True) from None
             raise APIError(e.code, msg, code, param, rid, body, h) from None
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
             if idempotent and attempt < retries:
@@ -277,8 +373,11 @@ def request(method, path, json_body=None, *, data=None, content_type=None, timeo
                 common.log(f"[tokentide] network error on {short}: {e}; retry {attempt + 1}/{retries} in {w:.0f}s")
                 time.sleep(w)
                 continue
-            raise APIError(0, f"Network error: {e}. Is {base_url()} reachable from this sandbox (network allowlist)? "
-                              "Run scripts/doctor.py.") from None
+            tls = "CERTIFICATE_VERIFY_FAILED" in str(e)
+            raise APIError(0, f"Network error: {e}. " + (
+                "This Python has no CA certificates: set SSL_CERT_FILE to a CA bundle (macOS python.org builds: run "
+                "'Install Certificates.command' in the Python folder)." if tls else
+                f"Is {base_url()} reachable from this sandbox (network allowlist)? Run scripts/doctor.py.")) from None
     raise APIError(0, "unreachable")
 
 
@@ -304,6 +403,8 @@ def post_adaptive(path, body, droppable=(), renames=None, **kw):
                 raise
             msg = (e.message or "").lower()
             param = (e.param or "").lower()
+            if "must be one of" in msg or "case-sensitive" in msg:
+                raise  # a value the model doesn't accept: fix the value instead of dropping the field
             changed = False
             for old, new in renames.items():
                 if old in body and (param in (old.lower(), new.lower()) or old.lower() in msg or new.lower() in msg):

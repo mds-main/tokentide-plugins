@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
-FONTS_DIR = SKILL_DIR / "assets" / "fonts"
+FONTS_DIR = SKILL_DIR / "assets" / "fonts"   # bundled fonts (SIL OFL)
 TEMPLATES_DIR = SKILL_DIR / "templates"
 
 W, H, FPS = 1080, 1920, 30  # vertical master for TikTok, Reels and X
@@ -181,6 +181,82 @@ def spent_usd(root) -> float:
     return round(sum(float(e.get("usd") or e.get("usd_est") or 0) for e in ledger_entries(root)), 4)
 
 
+# ---------------------------------------------------------------- fonts
+FONT_GLOBS = ("*.ttf", "*.otf", "*.TTF", "*.OTF")
+
+
+def font_dirs(root=None) -> list:
+    """Folders whose fonts captions and overlays can use, first match wins: the project's brand fonts
+    (P/assets/fonts/, then font files in P/assets/brand/), then the bundled fonts."""
+    dirs = []
+    if root:
+        dirs += [Path(root) / "assets" / "fonts", Path(root) / "assets" / "brand"]
+    dirs.append(FONTS_DIR)
+    return [d for d in dirs if d.is_dir()]
+
+
+def font_files(root=None) -> list:
+    seen, out = set(), []
+    for d in font_dirs(root):
+        for g in FONT_GLOBS:
+            for f in sorted(d.glob(g)):
+                if f.name.lower() not in seen:
+                    seen.add(f.name.lower())
+                    out.append(f)
+    return out
+
+
+def font_available(name: str, root=None) -> bool:
+    """True when a font file plausibly holds the family `name` (file names like Anton-Regular.ttf or
+    MontserratExtraBold.otf). libass matches the family name inside the file, so this is a hint."""
+    want = re.sub(r"[^a-z0-9]", "", (name or "").lower())
+    first = re.sub(r"[^a-z0-9]", "", (name or "").split()[0].lower()) if (name or "").split() else ""
+    for f in font_files(root):
+        stem = re.sub(r"[^a-z0-9]", "", f.stem.lower())
+        if want and (stem.startswith(want) or (first and stem.startswith(first))):
+            return True
+    return False
+
+
+# ---------------------------------------------------------------- TLS
+_SSL_CTX = None
+
+
+def ssl_context():
+    """A verifying TLS context that also works on fresh machines: python.org's macOS builds ship without
+    CA certificates until "Install Certificates" runs, so fall back to the system bundle (macOS keeps one
+    at /etc/ssl/cert.pem) or certifi. Verification is never turned off."""
+    global _SSL_CTX
+    if _SSL_CTX is not None:
+        return _SSL_CTX
+    import ssl
+
+    ctx = ssl.create_default_context()
+    paths = ssl.get_default_verify_paths()
+    has_default = any(x and os.path.exists(x) for x in (os.environ.get("SSL_CERT_FILE"), os.environ.get("SSL_CERT_DIR"),
+                                                       paths.cafile, paths.capath))
+    if not has_default and sys.platform != "win32":
+        bundles = ["/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt"]
+        try:
+            import certifi  # type: ignore
+
+            bundles.append(certifi.where())
+        except Exception:
+            pass
+        for b in bundles:
+            if os.path.isfile(b):
+                ctx.load_verify_locations(cafile=b)
+                break
+    _SSL_CTX = ctx
+    return ctx
+
+
+def urlopen(req, timeout=60):
+    import urllib.request
+
+    return urllib.request.urlopen(req, timeout=timeout, context=ssl_context())
+
+
 # ---------------------------------------------------------------- models cache
 def load_models(root=None, path=None) -> dict:
     cands = [Path(path)] if path else []
@@ -214,8 +290,30 @@ def spec_lookup(entry, *needles) -> dict:
 
 
 # ---------------------------------------------------------------- ffmpeg
+def tools_dir() -> Path:
+    """Where `doctor.py --fix` installs the pinned FFmpeg: TOKENTIDE_TOOLS_DIR, else the user's cache folder."""
+    if os.environ.get("TOKENTIDE_TOOLS_DIR"):
+        return Path(os.environ["TOKENTIDE_TOOLS_DIR"]).expanduser()
+    if sys.platform == "win32":
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "tokentide" / "tools"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / "tokentide" / "tools"
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "tokentide" / "tools"
+
+
+def managed_ffmpeg() -> str | None:
+    """The FFmpeg that `doctor.py --fix` installed (checksum-verified at install time), if any."""
+    meta = tools_dir() / "ffmpeg.json"
+    try:
+        path = json.loads(meta.read_text(encoding="utf-8")).get("path")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return path if path and os.path.isfile(path) and os.access(path, os.X_OK) else None
+
+
 def ffmpeg_bin():
-    b = os.environ.get("FFMPEG_BIN") or shutil.which("ffmpeg")
+    """FFMPEG_BIN, then the plugin-managed FFmpeg, then ffmpeg on PATH, then imageio-ffmpeg's."""
+    b = os.environ.get("FFMPEG_BIN") or managed_ffmpeg() or shutil.which("ffmpeg")
     if not b:
         try:
             import imageio_ffmpeg  # type: ignore
@@ -227,14 +325,24 @@ def ffmpeg_bin():
 
 
 def ffprobe_bin():
-    return os.environ.get("FFPROBE_BIN") or shutil.which("ffprobe")
+    """FFPROBE_BIN, then the ffprobe next to the chosen ffmpeg, then ffprobe on PATH. The plugin-managed
+    FFmpeg ships without one: without any ffprobe, probe() reads `ffmpeg -i` instead."""
+    if os.environ.get("FFPROBE_BIN"):
+        return os.environ["FFPROBE_BIN"]
+    fb = ffmpeg_bin()
+    if fb:
+        sib = Path(fb).with_name("ffprobe" + (".exe" if fb.lower().endswith(".exe") else ""))
+        if sib.is_file():
+            return str(sib)
+    return shutil.which("ffprobe")
 
 
 def require_ffmpeg() -> str:
     b = ffmpeg_bin()
     if not b:
-        die("ffmpeg not found. Install it (apt-get install -y ffmpeg | brew install ffmpeg | "
-            "pip install imageio-ffmpeg) or set FFMPEG_BIN. Then run scripts/doctor.py.")
+        die("ffmpeg not found. Agent: run `python3 " + str(Path(__file__).resolve().parent / "doctor.py") + " --fix` "
+            "(installs a pinned, checksum-verified FFmpeg for the plugin; no admin rights, nothing for the user to do), "
+            "or set FFMPEG_BIN to an ffmpeg built with libass.")
     return b
 
 
@@ -261,6 +369,77 @@ def _rate(r):
         a, b = r.split("/", 1)
         return round(_f(a) / _f(b), 3) if _f(b) else None
     return _f(r) or None
+
+
+_LAYOUT_CHANNELS = {"mono": 1, "stereo": 2, "2.1": 3, "quad": 4, "4.0": 4, "5.0": 5, "5.1": 6, "5.1(side)": 6,
+                    "6.1": 7, "7.1": 8}
+
+
+def _split_top(s: str) -> list:
+    """Split an ffmpeg stream description on commas outside parentheses/brackets."""
+    out, depth, cur = [], 0, ""
+    for ch in s:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth = max(0, depth - 1)
+        if ch == "," and depth == 0:
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    if cur.strip():
+        out.append(cur.strip())
+    return out
+
+
+def parse_ffmpeg_info(text: str, info: dict | None = None) -> dict:
+    """The fields of probe() from `ffmpeg -i` output, for machines without ffprobe. Skips cover art
+    (attached pictures) and reads codecs like "aac (LC) (mp4a / 0x6134706D)" by their first word."""
+    info = dict(info or {})
+    info.setdefault("duration", 0.0)
+    m = re.search(r"Duration: (\d+):(\d+):([\d.]+)", text)
+    if m:
+        info["duration"] = int(m[1]) * 3600 + int(m[2]) * 60 + float(m[3])
+    m = re.search(r"Duration: .*?bitrate: (\d+) kb/s", text)
+    if m:
+        info["bit_rate"] = int(m[1]) * 1000
+    for line in text.splitlines():
+        sm = re.search(r"Stream #\S+.*?: (Video|Audio): (.*)$", line)
+        if not sm:
+            continue
+        kind, parts = sm[1], _split_top(sm[2])
+        cm = re.match(r"([\w-]+)", parts[0]) if parts else None
+        codec = cm[1] if cm else None
+        if kind == "Video":
+            if "attached pic" in line or info.get("width"):
+                continue
+            info["vcodec"] = codec
+            for i, part in enumerate(parts[1:], 1):
+                size = re.match(r"(\d{2,5})x(\d{2,5})\b", part)
+                fps = re.match(r"([\d.]+) fps\b", part)
+                if size:
+                    info["width"], info["height"] = int(size[1]), int(size[2])
+                elif fps:
+                    info["fps"] = float(fps[1])
+                elif i == 1:
+                    pf = re.match(r"([a-z][a-z0-9_]*)(?:\(|$)", part)
+                    info["pix_fmt"] = pf[1] if pf else None
+            if not info.get("fps"):
+                tbr = re.search(r"([\d.]+) tbr", sm[2])
+                info["fps"] = float(tbr[1]) if tbr else None
+        elif kind == "Audio" and not info.get("has_audio"):
+            info.update(has_audio=True, acodec=codec)
+            for part in parts[1:]:
+                hz = re.match(r"(\d+) Hz\b", part)
+                n = re.match(r"(\d+) channels\b", part)
+                if hz:
+                    info["sample_rate"] = int(hz[1])
+                elif n:
+                    info["channels"] = int(n[1])
+                elif part in _LAYOUT_CHANNELS and not info.get("channels"):
+                    info["channels"] = _LAYOUT_CHANNELS[part]
+    return info
 
 
 def probe(path) -> dict:
@@ -294,21 +473,9 @@ def probe(path) -> dict:
                             channels=s.get("channels"))
                 info["duration"] = info["duration"] or _f(s.get("duration"))
         return info
-    err = subprocess.run([require_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True,
+    err = subprocess.run([require_ffmpeg(), "-hide_banner", "-nostdin", "-i", path], capture_output=True, text=True,
                          encoding="utf-8", errors="replace").stderr
-    m = re.search(r"Duration: (\d+):(\d+):([\d.]+)", err)
-    if m:
-        info["duration"] = int(m[1]) * 3600 + int(m[2]) * 60 + float(m[3])
-    m = re.search(r"Video: (\w+).*?, (\d{2,5})x(\d{2,5})", err)
-    if m:
-        info.update(vcodec=m[1], width=int(m[2]), height=int(m[3]))
-    m = re.search(r"([\d.]+) fps", err)
-    if m:
-        info["fps"] = float(m[1])
-    m = re.search(r"Audio: (\w+), (\d+) Hz", err)
-    if m:
-        info.update(has_audio=True, acodec=m[1], sample_rate=int(m[2]))
-    return info
+    return parse_ffmpeg_info(err, info)
 
 
 _FILTERS = None

@@ -3,7 +3,7 @@
   "mcpServers": {
     "tokentide": {
       "type": "streamable-http",
-      "url": "https://api.tokentide.app/mcp"
+      "url": "https://api.tokentide.app/mcp/studio"
     }
   }
 }

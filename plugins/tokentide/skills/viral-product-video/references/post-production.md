@@ -40,7 +40,8 @@ Models may be aliases (`@i2v`, `@keyframe`, `@i2v_audio`, `@scene`, `@tts`) set 
 2. Joins segments: concat for straight cuts, `xfade` for transitions (timebases normalised).
 3. Optional end card and seamless-loop tail.
 4. If the voice-over runs longer than the edit, holds the last frame (and warns — fix the edit).
-5. One high-quality encode with image overlays and burned ASS captions/hook text (bundled fonts).
+5. One high-quality encode with image overlays and burned ASS captions/hook text (project brand fonts,
+   then the bundled fonts).
 6. Builds the audio mix (VO + ducked music + SFX + optional native clip audio), two-pass loudnorm
    to −14 LUFS / −1.5 dBTP, muxes; renders a `_nomusic` variant when music is set.
 7. Cover (clean frame + title) and a 3:4 grid-crop preview; `_render.json` with the timeline.
@@ -65,8 +66,10 @@ Models may be aliases (`@i2v`, `@keyframe`, `@i2v_audio`, `@scene`, `@tts`) set 
 spoken word pops in the highlight colour — default), `karaoke` (fill), `single` (one big word),
 `plain`. Defaults: Anton 104 px, uppercase, white with black outline, highlight #FFE14D, lower
 position (bottom edge 680 px above the frame bottom, clear of TikTok/Reels UI).
-Brand it: `primary`/`highlight` from the brand palette; `font` can be any font in `assets/fonts`
-or installed system-wide (bundled: Anton, Montserrat ExtraBold, both SIL OFL).
+Brand it: `primary`/`highlight` from the brand palette; `font` is a font family name. Put brand
+fonts (.ttf/.otf) in the project's `P/assets/fonts/` (font files in `P/assets/brand/` work too): captions,
+overlays and the cover use them first, then the bundled fonts (Anton, Montserrat ExtraBold, both SIL OFL
+in the skill's `assets/fonts/`), then fonts installed system-wide. Check the font's licence allows video use.
 Text overlays: `hook` (boxed, top, first ~2.5 s), `label` (small, top-left — e.g. "AI-generated"),
 `title`; positions `top|upper|middle|lower|top-left|top-right`. Emoji are stripped from burned text
 (libass can't render colour emoji) — keep emoji for post captions.
@@ -96,7 +99,7 @@ ffmpeg -i a.mp4 -i b.mp4 -filter_complex "[0][1]xfade=transition=fade:duration=0
 # logo top-right inside the safe area
 ffmpeg -i v.mp4 -i logo.png -filter_complex "[1]scale=180:-1[l];[0][l]overlay=W-w-150:260" -c:a copy out.mp4
 # burn ASS captions with bundled fonts
-ffmpeg -i v.mp4 -vf "ass=captions.ass:fontsdir=SKILL_DIR/assets/fonts" -c:a copy captioned.mp4
+ffmpeg -i v.mp4 -vf "ass=captions.ass:fontsdir=P/assets/fonts" -c:a copy captioned.mp4   # or SKILL_DIR/assets/fonts
 # VO + ducked music + loudness
 ffmpeg -i video.mp4 -i vo.mp3 -i music.mp3 -filter_complex "[2]volume=0.3[m];[m][1]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=300[d];[1][d]amix=inputs=2:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -ar 48000 final.mp4
 # freeze the last frame for 1 s
@@ -106,7 +109,7 @@ ffmpeg -i v.mp4 -vf "tpad=stop_mode=clone:stop_duration=1" out.mp4
 ## 8. Troubleshooting
 | Symptom | Fix |
 |---|---|
-| captions use a fallback font | font name must match the family name of a file in assets/fonts (e.g. "Anton", "Montserrat ExtraBold") |
+| captions use a fallback font | `font` must be the family name inside a file in P/assets/fonts/, P/assets/brand/ or the bundled fonts (e.g. "Anton", "Montserrat ExtraBold"); `captions.py` warns when it finds no match |
 | VO cut off / last frame held | lengthen shots (`out`, `speed` < 1), add an end card, or shorten the script |
 | xfade error about timebase/size | re-run; all segments are normalised — check a custom `clip` isn't corrupt (`qa.py check clip.mp4`) |
 | music too loud | lower `music.volume` (0.15–0.25); keep `duck: true` |

@@ -3,20 +3,26 @@
 account (balance, tier, limits), today's tide prices, and what the key's privacy mode can see.
 
   doctor.py [--project P]   full check (status, account, market, catalog peek); caches account in P/logs
+  doctor.py --fix           also repair what the agent can: installs a pinned, checksum-verified FFmpeg
+                            (libass, freetype, fontconfig, libx264) into the plugin's tools folder when
+                            ffmpeg is missing or lacks a needed filter. No admin rights; the user does nothing.
   doctor.py --offline       skip network calls
-Exit code 1 if something required is missing; each problem prints its fix.
+Exit code 1 if something required is missing; each problem prints its fix (written for the agent).
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
 import re
 import subprocess
 import sys
 import urllib.parse
+from pathlib import Path
 
 import apiclient as api
 import common
+import ffmpeg_setup
 
 NEEDED_FILTERS = ["ass", "xfade", "loudnorm", "sidechaincompress", "amix", "tpad", "blackdetect", "freezedetect",
                   "silencedetect", "tile", "drawbox"]
@@ -25,26 +31,43 @@ NEEDED_FILTERS = ["ass", "xfade", "loudnorm", "sidechaincompress", "amix", "tpad
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--offline", action="store_true")
+    ap.add_argument("--fix", action="store_true", help="install the pinned FFmpeg when ffmpeg is missing or incomplete")
+    ap.add_argument("--force", action="store_true", help="with --fix: reinstall the pinned FFmpeg")
+    ap.add_argument("--ffmpeg-wheel", help="with --fix: install from a local copy of the pinned wheel (offline)")
     ap.add_argument("--project", help="project folder: caches the account snapshot (limits used for pacing)")
     a = ap.parse_args()
     ok = True
 
     def line(status, msg):
-        print(f"[{status}] {msg}")
+        print(f"[{status}] {msg}", flush=True)
 
     v = sys.version_info
     line("OK" if v >= (3, 8) else "FAIL", f"Python {v.major}.{v.minor}.{v.micro}" + ("" if v >= (3, 8) else " — need 3.8+"))
     ok &= v >= (3, 8)
     fb = common.ffmpeg_bin()
+    missing = [f for f in NEEDED_FILTERS if not common.has_filter(f)] if fb else NEEDED_FILTERS
+    if a.fix and (not fb or missing or a.force):
+        why = "not found" if not fb else ("reinstall requested" if a.force and not missing else
+                                          f"{fb} lacks {', '.join(missing)}")
+        line("FIX", f"ffmpeg {why}: installing the pinned FFmpeg ({ffmpeg_setup.VERSION}) into {common.tools_dir()}…")
+        try:
+            path = ffmpeg_setup.install(force=a.force, wheel=a.ffmpeg_wheel)
+            line("OK", f"installed {path} (SHA-256 verified); the scripts use it automatically")
+            common._FILTERS = None
+            fb = common.ffmpeg_bin()
+        except (RuntimeError, OSError, KeyError) as e:
+            line("FAIL", f"could not install FFmpeg: {e}")
     if not fb:
-        line("FAIL", "ffmpeg not found -> apt-get install -y ffmpeg | brew install ffmpeg | pip install imageio-ffmpeg "
-                     "(then set FFMPEG_BIN)")
+        line("FAIL", f"ffmpeg not found -> agent: run `{api.PY} {Path(__file__).resolve()} --fix` (installs a pinned, "
+                     "checksum-verified FFmpeg for the plugin, no admin rights), or set FFMPEG_BIN")
         ok = False
     else:
         ver = subprocess.run([fb, "-hide_banner", "-version"], capture_output=True, text=True).stdout.splitlines()[0]
         missing = [f for f in NEEDED_FILTERS if not common.has_filter(f)]
-        line("OK" if not missing else "FAIL", f"{ver[:60]}" + (f" — missing filters: {', '.join(missing)}" if missing
-                                                              else " — all needed filters present"))
+        managed = " (plugin-managed)" if fb == common.managed_ffmpeg() else ""
+        line("OK" if not missing else "FAIL", f"{ver[:60]}{managed}" + (
+            f" — missing filters: {', '.join(missing)} -> agent: run `{api.PY} {Path(__file__).resolve()} --fix`"
+            if missing else " — all needed filters present"))
         m = re.search(r"version (\d+)\.(\d+)", ver)
         if m and (int(m[1]), int(m[2])) < (4, 4):
             line("WARN", "ffmpeg < 4.4: amix normalize=0 may be unsupported; upgrade recommended")
@@ -52,18 +75,23 @@ def main():
         line("OK" if api.has_encoder("libopus") else "WARN",
              "libopus " + ("available (compresses long audio under the 4.5 MB body limit)" if api.has_encoder("libopus")
                            else "missing: long transcriptions may exceed 4.5 MB"))
-    fonts = sorted(p.name for p in common.FONTS_DIR.glob("*.ttf"))
-    line("OK" if fonts else "WARN", f"bundled fonts: {', '.join(fonts) or 'none'}")
+    if not common.ffprobe_bin() and fb:
+        line("OK", "ffprobe not found: media is probed with ffmpeg -i instead")
+    fonts = [f.name for f in common.font_files(a.project)]
+    line("OK" if fonts else "WARN", f"fonts: {', '.join(fonts) or 'none'}"
+         + (" (project brand fonts go in P/assets/fonts/)" if a.project else ""))
 
     base = api.base_url()
     line("OK", f"API base: {base}  (TOKENTIDE_BASE_URL overrides)")
-    key = api.get_api_key(required=False)
+    key, src = api.key_source()
     if not key:
-        line("FAIL", "TOKENTIDE_API_KEY not set -> export TOKENTIDE_API_KEY=tt_live_... (or TOKENTIDE_API_KEY_FILE / "
-                     "./.tokentide_api_key). Venice keys don't work on Tokentide. Never paste keys into deliverables.")
+        line("FAIL", api.link_instructions("No Tokentide key is linked for the plugin's scripts yet."))
         ok = False
     else:
-        line("OK", f"Tokentide key found ({key[:8]}…{key[-4:]})")
+        where = "env TOKENTIDE_API_KEY" if src == "env TOKENTIDE_API_KEY" else src
+        line("OK", f"Tokentide key found ({key[:8]}…{key[-4:]}, from {where})")
+        if src and not src.startswith("env") and os.name != "nt" and os.stat(src).st_mode & 0o077:
+            line("WARN", f"{src} is readable by other users -> chmod 600 {src}")
         if key.startswith("tt_test_") and base == api.DEFAULT_BASE:
             line("WARN", "tt_test_ keys only work on preview/staging deployments (mock output); use tt_live_ for production")
         if not key.startswith(("tt_live_", "tt_test_")):

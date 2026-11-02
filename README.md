@@ -33,7 +33,11 @@ ChatGPT desktop app and Codex: once the marketplace is added, open **Plugins** (
 CLI), choose the `tokentide` marketplace and install **Tokentide**.
 
 Only want the connector? Add `https://api.tokentide.app/mcp` as a custom connector (Claude:
-**Customize > Connectors**; ChatGPT: **Plugins > Add custom MCP server**).
+**Customize > Connectors**; ChatGPT: **Plugins > Add custom MCP server**). The plugin itself connects to
+`https://api.tokentide.app/mcp/studio`, which adds image, video and music tools.
+
+After installing, you sign in to Tokentide once. The video skill links its scripts to that connection
+and sets up FFmpeg on its own; there is no second key to create or paste.
 
 Step-by-step instructions: https://tokentide.app/claude (Claude) and https://tokentide.app/chatgpt
 (ChatGPT and Codex).

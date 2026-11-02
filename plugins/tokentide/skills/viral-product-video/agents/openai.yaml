@@ -8,6 +8,6 @@ dependencies:
   tools:
     - type: "mcp"
       value: "tokentide"
-      description: "Tokentide connector: live prices, cost estimates, quotes and the account balance"
+      description: "Tokentide connector: live prices, cost estimates, quotes, the account balance, image, video and music jobs, and linking the skill's scripts"
       transport: "streamable_http"
-      url: "https://api.tokentide.app/mcp"
+      url: "https://api.tokentide.app/mcp/studio"

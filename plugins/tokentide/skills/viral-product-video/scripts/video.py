@@ -54,16 +54,39 @@ def _num(s) -> float:
     return float(m.group()) if m else 0.0
 
 
+def allowed_values(entry, field):
+    """The values the cached model entry lists for a request field (duration, resolution, aspect_ratio)."""
+    key = {"aspect_ratio": "aspect"}.get(field, field)
+    allowed = [v for v in common.spec_lookup(entry or {}, key).values() if isinstance(v, list) and v]
+    return [str(x) for x in allowed[0]] if allowed else []
+
+
+def explain_rejection(e, body, entry) -> str:
+    """A 400 from a quote or queue, with the rejected parameter and the values the model accepts."""
+    param = e.param or next((f for f in ("duration", "resolution", "aspect_ratio") if f in (e.message or "")), None)
+    lines = [str(e)]
+    if param and param in body:
+        opts = allowed_values(entry, param)
+        lines.append(f"  rejected: {param}={json.dumps(body[param])} for {body.get('model')}"
+                     + (f"; accepted: {', '.join(opts)} (case-sensitive)" if opts else ""))
+        lines.append(f"  fix: set video.{param} in the spec to an accepted value "
+                     f"(`models.py show {body.get('model')}` lists them)")
+    return "\n".join(lines)
+
+
 def validate(body, entry):
     """Best-effort checks against the cached model spec. Returns (body, warnings)."""
     warns = []
     if not entry:
         return body, warns
-    for key, field in (("duration", "duration"), ("resolution", "resolution"), ("aspect", "aspect_ratio")):
-        allowed = [v for v in common.spec_lookup(entry, key).values() if isinstance(v, list) and v]
-        if not allowed or field not in body:
+    for field in ("duration", "resolution", "aspect_ratio"):
+        opts = allowed_values(entry, field)
+        if not opts or field not in body:
             continue
-        opts = [str(x) for x in allowed[0]]
+        exact = {o.lower(): o for o in opts}
+        if str(body[field]) not in opts and str(body[field]).lower() in exact:
+            body[field] = exact[str(body[field]).lower()]  # values are case-sensitive: 1080p -> 1080P
+            continue
         if field == "duration":
             opts_n = {norm_duration(o): o for o in opts}
             if body[field] not in opts_n:
@@ -436,7 +459,8 @@ def cmd_run(a):
             try:
                 cache[k] = quote(body)
             except api.APIError as e:
-                common.die(f"Quote failed for {rec['key']} ({body['model']}): {e}")
+                common.die(f"Quote failed for {rec['key']} ({body['model']}): "
+                           + (explain_rejection(e, body, models.get(body["model"])) if e.status == 400 else str(e)))
         q = cache[k]
         quotes.append(q)
         rec["quote_usd"] = q.get("usd")
@@ -546,7 +570,13 @@ def adhoc_body(a):
 
 def cmd_quote(a):
     api.set_lane(a.lane)
-    q = quote(adhoc_body(a))
+    body = adhoc_body(a)
+    try:
+        q = quote(body)
+    except api.APIError as e:
+        if e.status != 400:
+            raise
+        common.die(explain_rejection(e, body, common.load_models(None, getattr(a, "models", None)).get(body["model"])))
     print(json.dumps(q, indent=2))
 
 
@@ -647,6 +677,8 @@ def main():
         q.add_argument("--end-image")
         q.add_argument("--lane", choices=["standard", "lowtide"])
         q.add_argument("--set", action="append", help="extra field key=value (JSON ok), e.g. elements=[...]")
+        if name == "quote":
+            q.add_argument("--models", help="models.json, to list the accepted values when a value is rejected")
         if name == "submit":
             q.add_argument("--out", required=True)
             q.add_argument("--jobs")

@@ -22,7 +22,39 @@ changelog entries from 31 Oct–1 Nov 2026) — re-check the changelog when some
 | Production base URL | `https://api.tokentide.app/v1` (the scripts' default; `TOKENTIDE_BASE_URL` overrides it). The website is `https://tokentide.app`; the Vercel dev URL `tokentide-app.vercel.app/v1` reaches the same deployment |
 | Venice path alias | every host also serves `/api/v1/*`, so Venice SDKs work by changing host + key |
 | Auth | `Authorization: Bearer tt_live_…` (production rejects `tt_test_…` keys, which only work on preview/staging deployments). Venice keys are rejected. |
+| The scripts' key | linked by the agent, never typed by the user (below). Stored in `~/.config/tokentide/api_key` (`$XDG_CONFIG_HOME/tokentide`; Windows `%APPDATA%\tokentide\api_key`), mode 0600 / owner-only ACL |
 | Status | `GET /v1/status` (no auth); status page https://tokentide.app/status |
+
+**Linking the scripts (sign in once, ADR-0029).** The connector holds its own key, which its app keeps
+and the scripts must never read. Instead:
+1. The agent calls the connector tool `link_local_scripts`. It returns a one-time link code
+   (`ttlink_…`: one use, 5 minutes, bound to the account and the connection; at most 20 per account per
+   hour) and the command to run. A code is not a key, so it may appear in the conversation.
+2. `auth.py exchange --code <code>` sends `POST /api/plugin/exchange` `{"code", "hostname"}` (JSON only,
+   TLS only, rate-limited per address) to the API host. The answer carries a new key **once**:
+   `{object: "plugin_key", key, key_id, masked, name, privacy_mode, daily_cap_usd, origin}`. The script
+   writes the key to the key file and prints only `…last4`, the privacy mode and the daily cap.
+3. The key is named "Local scripts (plugin) · <app> · <machine>", copies the connection's privacy mode,
+   caps, lane and limits, and is listed under the connection in the dashboard. **Revoking the connection
+   revokes it**; the next script call then answers 401 and prints the re-link steps.
+Without the connector, `auth.py login` runs an OAuth device flow (RFC 8628): `POST /api/plugin/device`
+→ `device_code`, `user_code` (XXXX-XXXX), `verification_uri_complete` (tokentide.app/link, where the user
+approves once and picks the privacy mode and cap); the script polls `POST /api/plugin/device/token`
+(`authorization_pending`, `slow_down` + new `interval`, `access_denied`, `expired_token`, then the key
+once). `auth.py rotate` (`POST /api/plugin/keys/rotate`, Bearer = the plugin key) swaps the key for a new
+one with the same settings; `auth.py logout --revoke` (`POST /api/plugin/keys/revoke`) ends it. Only
+plugin keys can rotate or revoke themselves this way; every linking, rotation and revocation appears in
+the dashboard's API keys activity. Errors: `{"error": code, "message"}` with `invalid_code`,
+`connection_revoked`, `account_restricted`, `rate_limited`, `invalid_api_key`.
+
+**Apps without a shell.** The plugin's connector (`https://api.tokentide.app/mcp/studio`) adds
+`generate_image`, `edit_image`, `compose_images`, `upscale_image`, `remove_image_background`,
+`start_video_job`/`check_video_job` and `start_music_job`/`check_music_job`. Inputs are public URLs,
+data URLs or files the app passes (`{download_url}`); Tokentide stores none. A finished job comes back
+as `GET /v1/media/{token}`: the file streams from Venice when opened, the link expires after 6 hours,
+and the media is deleted upstream after one complete download (an interrupted download can be retried).
+There is no hosted assembly: editing, captions and the mix need the scripts.
+
 **Privacy mode is set per key** and filters what the key can see and call:
 - `private` (default for new keys): Private, TEE and E2EE models only. In Nov 2026 that view had a few
   private edit models (FireRed, Grok Imagine edit), **no background removal** (`bria-bg-remover` is
@@ -53,6 +85,7 @@ the ledger in AWS US East. Anonymized models' providers may retain content under
 | `GET /account/usage` | per-request metadata (never content), CSV export |
 | `GET /market` (no auth), `POST /market/quote` | live multipliers, Low Tide status, tide table; lock a multiplier for 60 s |
 | `POST /uploads` | Large Payload Lane slot (§7) |
+| `POST /api/plugin/{exchange,device,device/token,keys/rotate,keys/revoke}` | the scripts' sign-in (§1); not under `/v1`, no `Venice` equivalent |
 Not offered: voice cloning (`/audio/voices`) and voice changer. Not proxied: Venice account routes
 (`/api_keys`, `/billing`). `GET /v1/openapi.json` documents paths but says bodies are "same as Venice".
 
@@ -93,7 +126,7 @@ Tokentide errors use `{"error": {"message", "type": "tokentide_error", "code", "
 Venice's 400/404/413/415/422 bodies pass through unchanged.
 | Code | HTTP | Script behaviour |
 |---|---|---|
-| `invalid_request` | 400 | drop/rename the field named in `param` (Venice errors: `issues[].path`) if optional, else stop |
+| `invalid_request` | 400 | a value the model doesn't list (video `duration`, `resolution`, `aspect_ratio`) is refused before Venice with `param` and the accepted values, e.g. "resolution must be one of 480P, 768P, 1080P … (values are case-sensitive: use 1080P)": fix the value, never drop it. An unknown optional field (`param`, or Venice's `issues[].path`) is dropped/renamed and retried |
 | `invalid_api_key` / `unauthorized` | 401 | stop: fix the key |
 | `insufficient_balance` / `spend_limit_reached` | 402 | stop: top up or raise cap |
 | `model_not_allowed` | 403 | stop: key privacy mode too strict (use mode `all`) |

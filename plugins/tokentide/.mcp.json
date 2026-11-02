@@ -2,7 +2,7 @@
   "mcpServers": {
     "tokentide": {
       "type": "http",
-      "url": "https://api.tokentide.app/mcp"
+      "url": "https://api.tokentide.app/mcp/studio"
     }
   }
 }

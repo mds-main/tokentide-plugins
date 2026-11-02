@@ -144,10 +144,11 @@ def overlay_events(overlays, c):
     return ev
 
 
-def build(words, cfg, overlays, out_ass: Path, out_srt: Path | None):
+def build(words, cfg, overlays, out_ass: Path, out_srt: Path | None, root=None):
     c = {**DEFAULTS, **{k: v for k, v in (cfg or {}).items() if v is not None}}
-    if not (common.FONTS_DIR / f"{c['font']}-Regular.ttf").exists() and not list(common.FONTS_DIR.glob(f"{c['font'].split()[0]}*")):
-        common.log(f"note: font '{c['font']}' not bundled; libass will fall back unless it's installed system-wide")
+    if not common.font_available(c["font"], root):
+        common.log(f"note: font '{c['font']}' is not in P/assets/fonts/, P/assets/brand/ or the bundled fonts; "
+                   "libass falls back to another font unless it is installed system-wide")
     ev, srt = caption_events(words, c) if c.get("enabled", True) else ([], [])
     ev += overlay_events(overlays, c)
     out_ass.parent.mkdir(parents=True, exist_ok=True)
@@ -188,7 +189,7 @@ def main():
                    "(run audio.py transcribe/align first for spoken captions)")
     out = Path(a.out) if a.out else (spec.root / "captions" / f"{spec.vid}.ass" if spec else Path("captions.ass"))
     srt = Path(a.srt) if a.srt else out.with_suffix(".srt")
-    n_ev, n_srt = build(words, cfg, overlays, out, srt)
+    n_ev, n_srt = build(words, cfg, overlays, out, srt, spec.root if spec else None)
     print(f"{out}  ({n_ev} events)" + (f"  + {srt} ({n_srt} cues)" if n_srt else ""))
     if spec:
         spec.reload()

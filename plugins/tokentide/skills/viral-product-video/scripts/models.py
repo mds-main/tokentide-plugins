@@ -6,7 +6,7 @@ project (and before each new batch) run `recommend`, show the user the options, 
 Specs refer to the picks by alias ("@i2v", "@keyframe", ...), so switching models is one command.
 
   list       catalog table, filters --type/--find; --out caches the raw JSON (models.json)
-  show ID    full JSON entry for one model
+  show ID    accepted durations, resolutions and aspect ratios, then the full JSON entry (--json: JSON only)
   recommend  per job: Premium / Balanced / Budget / Newest / Private options from live /models data,
              with real prices from free /video/quote calls for a standard clip (default 5 s, 1080p, 9:16).
              --ranks ranks.json adds current leaderboard scores (see references/models.md).
@@ -605,10 +605,28 @@ def cmd_list(a):
         print("No models matched.", file=sys.stderr)
 
 
+def accepted_values(m) -> dict:
+    """The request values a model accepts, from its catalog entry: {"duration": [...], "resolution": [...],
+    "aspect_ratio": [...]}. Tokentide rejects anything else before Venice sees it, and values are case-sensitive."""
+    out = {}
+    for field, needle in (("duration", "duration"), ("resolution", "resolution"), ("aspect_ratio", "aspect")):
+        vals = lists(m, needle)
+        if vals:
+            out[field] = vals
+    return out
+
+
 def cmd_show(a):
     m = next((x for x in catalog(a) if x.get("id") == a.id), None)
     if not m:
         common.die(f"Model '{a.id}' not found (check the id with `models.py list --find ...`)")
+    if not a.json:
+        acc = accepted_values(m)
+        if acc:
+            print(f"Accepted values for {a.id} (use them exactly; they are case-sensitive):")
+            for field, vals in acc.items():
+                print(f"  {field}: {', '.join(vals)}")
+            print()
     print(json.dumps(m, indent=2, ensure_ascii=False))
 
 
@@ -624,6 +642,7 @@ def main():
     sh = sub.add_parser("show")
     sh.add_argument("id")
     sh.add_argument("--cache")
+    sh.add_argument("--json", action="store_true", help="only the raw catalog entry")
     r = sub.add_parser("recommend")
     r.add_argument("--project", help="project folder: caches models.json and writes model_options.md/.json there")
     r.add_argument("--jobs", help="comma list (default keyframe,scene,i2v,i2v_audio,r2v,tts,music,sfx); also t2v, upscale")

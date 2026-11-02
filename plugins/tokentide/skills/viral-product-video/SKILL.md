@@ -2,7 +2,7 @@
 name: viral-product-video
 description: Researches any product or brand in depth (positioning, proof, customer reviews and language, competitors, ads, trends), turns it into a virality strategy (hero moments, angles, hook bank, series, calendar), then plans, generates, edits, quality-checks and packages short-form vertical videos for TikTok, Instagram Reels and X through the Tokentide API, a Venice-compatible API (live model recommendations with tide prices, product-accurate keyframes, image-to-video, original music and sound effects, voice-over, transcription) plus FFmpeg (captions, audio mix, export). Use it whenever the user wants to promote, launch, market, grow an account for, or go viral with a product, app, service or brand on social media, or asks for TikToks, Reels, Shorts-style or X videos, AI video ads, UGC-style content, hooks, scripts or a short-form content plan. Also use it whenever the user mentions Tokentide or has a TOKENTIDE_API_KEY. Works in any language.
 license: Proprietary (Tokentide Plugin License, see LICENSE in the plugin root). Use only with the Tokentide service.
-compatibility: Needs network access to the Tokentide API (api.tokentide.app) plus web search, Python 3.8+, ffmpeg with libass, and a TOKENTIDE_API_KEY whose privacy mode is 'all'. Runs in Claude Code, Codex, the code environments of the Claude and ChatGPT apps (the domain must be allowed) and the Claude API/Agent SDK.
+compatibility: The full pipeline needs a shell with Python 3.8+ and network access to api.tokentide.app (Claude Code, Codex, or a Claude/ChatGPT code environment that allows the domain) plus web search. The scripts link their own key through the Tokentide connector and install FFmpeg themselves, so the user only signs in once. Without a shell, the connector's image, video and music tools cover research, strategy and generation.
 ---
 
 # Viral Product Video Studio (Tokentide)
@@ -18,12 +18,20 @@ persist between calls. Scripts are stdlib-only Python: run `python3 SKILL_DIR/sc
 for options and treat them as tools — read their source only when debugging. Paths inside a spec are
 relative to `P`. Each phase names the reference file to open when you reach it.
 
-This skill ships in the Tokentide plugin next to the **Tokentide connector**. When its tools are
-available, use them for quick answers in the conversation: `explain_pricing` (how tide prices, Low
-Tide, quotes and job cutoffs work), `get_market` (live multipliers and the tide table), `estimate_cost`,
-`price_video_job` / `price_music_job` (free quotes) and `get_account` (balance, caps, limits). The
-scripts still do every generation step, with the user's own `TOKENTIDE_API_KEY`: the connector signs in
-with a separate key and cannot hand files to FFmpeg.
+This skill ships in the Tokentide plugin next to the **Tokentide connector**. The user signs in to
+Tokentide once, when the connector asks; everything else is your job. Use the connector's tools for
+quick answers in the conversation: `explain_pricing` (tide prices, Low Tide, quotes, job cutoffs),
+`get_market` (live multipliers and the tide table), `estimate_cost`, `price_video_job` /
+`price_music_job` (free quotes) and `get_account` (balance, caps, limits). The scripts do the generation
+steps with their own key, which you link through the connector in phase 0 (`link_local_scripts`), so the
+user never creates, copies or pastes a key. Never ask for one, and never print it.
+
+**What each app can run** (the connector the plugin installs serves the media tools too):
+| App | Phases | How |
+|---|---|---|
+| Claude Code, Codex (shell on the user's computer) | 0–12 | scripts; link them in phase 0, `doctor.py --fix` sets up FFmpeg |
+| Claude / ChatGPT with code execution that allows api.tokentide.app | 0–12 | scripts, as above (link again in each new sandbox) |
+| Claude / ChatGPT without a usable shell | 0 (models), 1–5, 6–7 via tools, 11 | connector tools: `list_models`/`get_model` for options, `price_video_job` quotes, `generate_image`/`edit_image`/`compose_images` for keyframes, `start_video_job` + `check_video_job` and `start_music_job` + `check_music_job` for clips and music (finished files come back as download links: one complete download each, within 6 hours). No assembly, captions, voice-over mix or QA renders: hand over the clips, music and the spec, and say the edit needs Claude Code, Codex or an editor |
 
 ## Principles (and why they matter)
 - **Research decides the creative.** Most failed videos fail on the idea, not the pixels. Angles and
@@ -54,7 +62,7 @@ with a separate key and cannot hand files to FFmpeg.
 
 ## Master checklist (copy into your task list and tick as you go)
 ```
-[ ] 0  Setup: doctor · brief · project · model options → user picks → choose
+[ ] 0  Setup: doctor --fix · link scripts · brief · project · model options → user picks → choose
 [ ] 1  Product & brand dossier
 [ ] 2  Audience & voice of customer
 [ ] 3  Competitors, ads & trends
@@ -70,35 +78,52 @@ with a separate key and cannot hand files to FFmpeg.
 ```
 
 ## Phase 0 — Setup
-1. **Environment:** `python3 SKILL_DIR/scripts/doctor.py`. It checks Python, ffmpeg filters, fonts,
-   the key and network, and prints a fix for anything missing.
-   Run it as `doctor.py --project P` once the project exists: it also caches the account limits used
-   for pacing.
-   - Key lookup: env `TOKENTIDE_API_KEY` (`tt_live_…`), file at `TOKENTIDE_API_KEY_FILE`,
-     `./.tokentide_api_key`, or `~/.config/tokentide/api_key`. Never print the key or write it into
+1. **Environment — sign in once, then fix everything yourself** (the user approves in the browser at
+   most once and runs nothing):
+   - `python3 SKILL_DIR/scripts/doctor.py --fix`. It checks Python, FFmpeg filters, fonts, the key and
+     network, and repairs what it can: without a suitable FFmpeg it installs a pinned, checksum-verified
+     static build (libass, freetype, fontconfig, libx264) into the plugin's tools folder, with no admin
+     rights; the scripts find it automatically. Re-run it as `doctor.py --project P` once the project
+     exists: it also caches the account limits used for pacing.
+   - **No key linked yet** (doctor or any script says so): call the connector's `link_local_scripts`
+     tool, then run the command it returns right away:
+     `python3 SKILL_DIR/scripts/auth.py exchange --code <code>` (one use, 5 minutes). It stores the
+     scripts' own key (same privacy mode and caps as the connection, grouped under it in the dashboard)
+     in the user's config folder with owner-only permissions and prints only `linked: key …abcd`,
+     its privacy mode and daily cap. No approval is needed: the user already signed in to the connector.
+   - **No connector tools** (not installed, or no sign-in yet): ask the user to connect Tokentide once —
+     Claude desktop app: Customize > Connectors (or the plugin's Connectors tab) → Connect; Claude Code
+     terminal: `/mcp` → tokentide; Codex: `codex mcp login tokentide` — or run
+     `python3 SKILL_DIR/scripts/auth.py login`, which prints a tokentide.app link and code for one
+     approval in the browser (it waits ~2 minutes per run; continue with `auth.py login --resume`).
+   - **A linked key stops working** (401; revoking the connection revokes its scripts key): scripts say
+     so and what to run. Call `link_local_scripts` again (if the connector's tools also fail, ask the user
+     to reconnect it first, as above) and run the new exchange command. `auth.py status` shows which key
+     is used (masked); `auth.py rotate` replaces it; `auth.py logout --revoke` ends it.
+   - Key lookup order: env `TOKENTIDE_API_KEY`, `TOKENTIDE_API_KEY_FILE`, `./.tokentide_api_key`, then the
+     file `auth.py` writes (`~/.config/tokentide/api_key`; Windows `%APPDATA%\tokentide\api_key`). An
+     env var wins over the linked key. Never print a key, paste it into chat or write it into
      deliverables. Venice keys don't work here.
-   - Never ask the user to paste a key into the conversation. If none is set, tell them how to set it
-     themselves: the environment variable, or a key file (in hosted apps, uploading the key as a file
-     and pointing `TOKENTIDE_API_KEY_FILE` at it keeps it out of the chat). Meanwhile do research,
-     strategy and specs.
-   - **The key needs privacy mode `all`** (or `private_text`; set when creating it in the Tokentide
-     dashboard). The default `private` mode hides background removal, most premium edit and video models
-     and all music models, so premium product-accurate keyframes are out of reach. Doctor and the
-     recommender warn when this is the case.
-   - Host: `https://api.tokentide.app/v1`, the production API (default). `TOKENTIDE_BASE_URL`
-     overrides it, e.g. for a preview deployment. `tt_test_` keys only work on preview/staging
-     deployments and return mock output.
+   - **Privacy mode `all`** (or `private_text`) is what the user picks when connecting, and the scripts'
+     key inherits it. The default `private` mode hides background removal, most premium edit and video
+     models and all music models; doctor and the recommender warn when this is the case, and the user can
+     change the connection's key in the dashboard.
+   - Host: `https://api.tokentide.app/v1` (default; sign-in calls go to the same host, so a sandbox only
+     needs that domain). `TOKENTIDE_BASE_URL` overrides it, e.g. for a preview deployment. `tt_test_` keys
+     only work on preview/staging deployments and return mock output.
    - If the API is unreachable (sandbox allowlist; on Team/Enterprise plans owners control this in Admin
-     settings → Capabilities), say so, still do research, strategy and specs, and hand those over.
+     settings → Capabilities), say so, use the connector's tools where they cover the phase, still do
+     research, strategy and specs, and hand those over.
    - First time in an environment, `python3 SKILL_DIR/scripts/selftest.py` runs the whole pipeline
-     against a local mock API (no key, no cost) in ~1 minute (a Tokentide-shaped mock).
+     against a local mock API (no key, no cost) in ~1 minute, including the sign-in flow.
 2. **Brief** — ask once, in one message, only for what you can't find yourself: product name + URL,
    offer/price, target markets and languages, platforms (default: all three), goal (awareness /
    followers / sales), budget cap (default $50), brand assets (high-res product photos from several
    angles on plain backgrounds, transparent logo, brand colours/fonts), existing account handles,
    no-go claims or topics. If the user is away, proceed with sensible defaults and list them.
 3. **Project:** `python3 SKILL_DIR/scripts/init_project.py "<Product>" --budget-usd 50 --languages en`
-   creates `P = projects/<slug>/` with templates. Put photos in `P/assets/product/`, logo in `P/assets/brand/`.
+   creates `P = projects/<slug>/` with templates. Put photos in `P/assets/product/`, logo in `P/assets/brand/`,
+   brand fonts (.ttf/.otf) in `P/assets/fonts/` (captions and overlays can then use them by family name).
 4. **Models — always from the live catalog** (references/models.md):
    `python3 SKILL_DIR/scripts/models.py recommend --project P`
    It refreshes `models.json`, prices video and music models with free quotes, and writes
@@ -226,7 +251,7 @@ projects/<slug>/
   models.json          live catalog cache        model_options.md   options shown to the user
   research/  strategy/ the four filled templates
   briefs/vNN.json      one spec per video (source of truth for every script)
-  assets/{product,brand,scenes,music,sfx}/   real photos, logo, scenes, licensed audio
+  assets/{product,brand,fonts,scenes,music,sfx}/   real photos, logo, brand fonts (.ttf/.otf), scenes, licensed audio
   keyframes/ clips/ audio/ captions/ renders/ qa/ post/
   logs/ledger.jsonl    every API call + spend     logs/vNN_video_jobs.json   queue ids (resume polling)
 ```
@@ -235,10 +260,12 @@ Every generated file has a `.json` sidecar with model, prompt and request id (pr
 ## When things go wrong
 | Symptom | Do |
 |---|---|
-| 401 invalid_api_key | Tokentide key (`tt_live_…`) for prod; `tt_test_` only on preview/staging |
-| 403 model_not_allowed | key privacy mode too strict → key in mode `all` (or pick a Private option) |
+| "No Tokentide key is linked" | `link_local_scripts` → `auth.py exchange --code <code>` (phase 0); without the connector, `auth.py login` |
+| 401 invalid_api_key | key revoked (or its connection was): link again as above; the user reconnects the connector only if its tools fail too |
+| ffmpeg missing / filter missing | `doctor.py --fix` |
+| 403 model_not_allowed | the connection's privacy mode is too strict → the user sets mode `all` on the connection's key in the dashboard (or pick a Private option) |
 | network error | allowlist api.tokentide.app (or the `TOKENTIDE_BASE_URL` host); meanwhile finish research/specs |
-| 400 on a parameter | scripts drop/rename the field named in `param`; else `models.py show <id>` and references/tokentide-api.md |
+| 400 on a parameter | the error names the parameter and the accepted values (case-sensitive, e.g. `1080P`); `models.py show <id>` lists them; fix the spec. Unknown optional fields are dropped automatically |
 | 402 insufficient_balance / spend_limit_reached | tell the user: top up or raise the cap; offer Budget/Low Tide |
 | 413 payload_too_large | inputs are auto-shrunk; for video inputs pass a public https URL |
 | 503 epoch_rollover / queue closed | daily reset: queue after 00:00 UTC (quotes still work) |
