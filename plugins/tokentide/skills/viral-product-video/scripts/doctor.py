@@ -77,7 +77,7 @@ def main():
         line("OK" if st.get("status") == "operational" else "WARN",
              f"status: {st.get('status')} · components: {st.get('components')}")
     except api.APIError as e:
-        line("FAIL", f"cannot reach {base}: {str(e).splitlines()[0]}\n       In Claude apps the code sandbox must allow "
+        line("FAIL", f"cannot reach {base}: {str(e).splitlines()[0]}\n       In hosted apps (Claude, ChatGPT) the code sandbox must allow "
                      f"{urllib.parse.urlsplit(base).hostname} (Team/Enterprise owners: Admin settings → Capabilities). Research and specs "
                      f"can still be produced; generation needs network access.")
         sys.exit(1)

@@ -1,8 +1,9 @@
-# Tokentide plugins for Claude
+# Tokentide plugins for Claude, ChatGPT and Codex
 
-The official Claude plugin marketplace of [Tokentide](https://tokentide.app): Venice AI models
-below list price, with a published intraday tide table, an opt-in Low Tide lane and zero data retention
-on Private models.
+The official plugin marketplace of [Tokentide](https://tokentide.app): Venice AI models below list
+price, with a published intraday tide table, an opt-in Low Tide lane and zero data retention on Private
+models. The same marketplace serves Claude (`.claude-plugin/marketplace.json`) and ChatGPT and Codex
+(`.agents/plugins/marketplace.json`).
 
 | Plugin                           | What it adds                                                                                                                                                |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -20,10 +21,22 @@ Claude Code:
 Claude apps (claude.ai, desktop, Cowork): **Customize > Plugins > Add marketplace**, enter
 `mds-main/tokentide-plugins`, then install **Tokentide**.
 
-Only want the connector? Add `https://api.tokentide.app/mcp` as a custom connector under
-**Customize > Connectors**.
+Codex CLI:
 
-Step-by-step instructions: https://tokentide.app/claude
+```text
+codex plugin marketplace add mds-main/tokentide-plugins
+codex plugin add tokentide@tokentide
+codex mcp login tokentide
+```
+
+ChatGPT desktop app and Codex: once the marketplace is added, open **Plugins** (or `/plugins` in Codex
+CLI), choose the `tokentide` marketplace and install **Tokentide**.
+
+Only want the connector? Add `https://api.tokentide.app/mcp` as a custom connector (Claude:
+**Customize > Connectors**; ChatGPT: **Plugins > Add custom MCP server**).
+
+Step-by-step instructions: https://tokentide.app/claude (Claude) and https://tokentide.app/chatgpt
+(ChatGPT and Codex).
 
 ## Updates
 

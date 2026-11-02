@@ -1,0 +1,20 @@
+{
+  "name": "tokentide",
+  "interface": {
+    "displayName": "Tokentide"
+  },
+  "plugins": [
+    {
+      "name": "tokentide",
+      "source": {
+        "source": "local",
+        "path": "./plugins/tokentide"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

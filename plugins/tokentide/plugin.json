@@ -1,0 +1,101 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "tokentide",
+  "version": "1.1.0",
+  "description": "Use the Tokentide API from ChatGPT and Codex: live model prices and the tide table, quotes and cost estimates, the model catalog, your balance and usage, and paid model calls within your connection's limits. Includes a skill that researches a product and turns it into short-form vertical videos for TikTok, Instagram Reels and X with Tokentide's models.",
+  "author": {
+    "name": "Tokentide",
+    "email": "support@tokentide.app",
+    "url": "https://tokentide.app"
+  },
+  "homepage": "https://tokentide.app/chatgpt",
+  "repository": "https://github.com/mds-main/tokentide-plugins",
+  "license": "LicenseRef-Tokentide-Proprietary",
+  "keywords": ["tokentide", "venice", "ai-models", "pricing", "low-tide", "mcp", "video", "marketing"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Tokentide",
+        "shortDescription": "AI model prices and usage",
+        "longDescription": "Tokentide is an OpenAI-compatible API for Venice AI models. This plugin connects ChatGPT and Codex to it.\n\nWithout signing in, you can ask how Tokentide prices requests right now (the tide table, the Low Tide lane, quotes and the daily reset), read the live market, browse the model catalog with each model's capabilities and limits, and estimate what a workload would cost.\n\nAfter you connect your Tokentide account, you can see your balance, spend caps and request history, get binding price quotes for video and music jobs, and run chat, embedding and decision requests. Paid calls are billed to your existing Tokentide balance, and each result states the exact charge. When you connect, you set a daily spending cap and the privacy mode of the API key Tokentide creates for this connection; you can change or revoke that key at any time in your Tokentide dashboard.\n\nThe plugin also includes the viral-product-video skill, which researches a product and plans, generates, edits, checks and packages short-form vertical videos for TikTok, Instagram Reels and X. The skill runs Python scripts, so it needs a code environment with network access to api.tokentide.app, FFmpeg, and a Tokentide API key that you set in that environment yourself.\n\nLimitations: the plugin does not sell credits or create accounts; top-ups and account settings stay on tokentide.app. Tokentide does not store prompts, inputs or outputs.",
+        "developerName": "Tokentide",
+        "category": "Developer Tools",
+        "capabilities": ["Read", "Write"],
+        "websiteURL": "https://tokentide.app/chatgpt",
+        "supportURL": "https://tokentide.app/chatgpt#support",
+        "privacyPolicyURL": "https://tokentide.app/legal/privacy",
+        "termsOfServiceURL": "https://tokentide.app/legal/terms",
+        "defaultPrompt": [
+          "How does Tokentide price requests right now, and when is it cheapest today?",
+          "Estimate what 1,000 chat requests of 2,000 input and 500 output tokens cost on Tokentide.",
+          "Summarize my Tokentide spending over the last 7 days."
+        ],
+        "brandColor": "#00848B",
+        "brandColorDark": "#43D5D9",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/icon.png"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Explain current pricing without signing in",
+              "prompt": "How does Tokentide price requests right now, and when is it cheapest today?",
+              "tools_triggered": "explain_pricing, get_market",
+              "expected_behavior": "Explains the Standard and Low Tide lanes with the live multipliers and the tide table for the rest of the UTC day, and names the cheapest upcoming window."
+            },
+            {
+              "description": "Browse the model catalog",
+              "prompt": "Which Tokentide models can generate images, and what does each one cost?",
+              "tools_triggered": "list_models",
+              "expected_behavior": "Lists the image models from the live catalog with their current prices, without inventing models that are not in the catalog."
+            },
+            {
+              "description": "Estimate a workload before spending",
+              "prompt": "Estimate what 1,000 chat requests of 2,000 input and 500 output tokens cost on Tokentide's default text model.",
+              "tools_triggered": "list_models, estimate_cost",
+              "expected_behavior": "Returns the estimated total on the Standard and Low Tide lanes, states that it is an estimate, and runs no paid request."
+            },
+            {
+              "description": "Account balance and spending (signed in)",
+              "prompt": "What is my Tokentide balance, and what did I spend over the last 7 days?",
+              "tools_triggered": "get_account, get_usage",
+              "expected_behavior": "Shows the connected account's spendable balance and spend caps and summarizes its usage for the period, for that account only."
+            },
+            {
+              "description": "Run a paid model call with confirmation (signed in)",
+              "prompt": "Use a private Tokentide text model to summarize this paragraph in one sentence: Tokentide publishes a tide table that sets its prices for each hour of the UTC day.",
+              "tools_triggered": "chat_completion",
+              "expected_behavior": "Asks for confirmation before the billed call, then returns the one-sentence summary with the model used and the exact charge."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Buying credits is not offered in the plugin",
+              "prompt": "Buy me $50 of Tokentide credits."
+            },
+            {
+              "description": "Deleting the account is not supported",
+              "prompt": "Delete my Tokentide account and all my API keys."
+            },
+            {
+              "description": "No access to other users' data",
+              "prompt": "Show me the usage and balance of another Tokentide customer."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "The plugin sells nothing. Its paid tools run models billed to the user's existing Tokentide balance, within the daily cap and privacy mode chosen when connecting; balance top-ups happen on tokentide.app."
+      },
+      "publication": {
+        "release_notes": "First release for ChatGPT and Codex: the Tokentide connector (live prices and the tide table, cost estimates and quotes, the model catalog, account balance and usage, paid chat, embedding and decision calls) and the viral-product-video skill.",
+        "translations": {
+          "es-ES": {
+            "subtitle": "Precios y uso de modelos de IA",
+            "description": "Tokentide es una API compatible con OpenAI para los modelos de IA de Venice. Este plugin conecta ChatGPT y Codex con ella.\n\nSin iniciar sesión puedes preguntar cómo fija Tokentide los precios ahora mismo (la tabla de mareas, el carril Low Tide, las cotizaciones y el reinicio diario), leer el mercado en vivo, explorar el catálogo de modelos con las capacidades y los límites de cada uno, y estimar lo que costaría una carga de trabajo.\n\nCuando conectas tu cuenta de Tokentide, puedes ver tu saldo, tus límites de gasto y tu historial de solicitudes, obtener cotizaciones vinculantes para trabajos de vídeo y música, y ejecutar solicitudes de chat, embeddings y decisiones. Las llamadas de pago se cobran de tu saldo de Tokentide y cada resultado indica el cargo exacto. Al conectar eliges un límite de gasto diario y el modo de privacidad de la clave de API que Tokentide crea para esta conexión; puedes cambiarla o revocarla cuando quieras en tu panel de Tokentide.\n\nEl plugin incluye además la skill viral-product-video, que investiga un producto y planifica, genera, edita, revisa y empaqueta vídeos verticales cortos para TikTok, Instagram Reels y X. La skill ejecuta scripts de Python, así que necesita un entorno de código con acceso a api.tokentide.app, FFmpeg y una clave de API de Tokentide que configures tú mismo en ese entorno.\n\nLimitaciones: el plugin no vende créditos ni crea cuentas; las recargas y los ajustes de la cuenta se hacen en tokentide.app. Tokentide no guarda prompts, entradas ni salidas."
+          }
+        }
+      }
+    }
+  }
+}

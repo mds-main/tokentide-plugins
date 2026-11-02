@@ -1,0 +1,13 @@
+interface:
+  display_name: "Viral product video"
+  short_description: "Research a product and make short-form videos for TikTok, Reels and X"
+  brand_color: "#00848B"
+  default_prompt: "Research our product and make short-form vertical videos for TikTok, Instagram Reels and X with Tokentide."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "tokentide"
+      description: "Tokentide connector: live prices, cost estimates, quotes and the account balance"
+      transport: "streamable_http"
+      url: "https://api.tokentide.app/mcp"

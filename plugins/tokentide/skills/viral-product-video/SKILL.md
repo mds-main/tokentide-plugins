@@ -1,15 +1,15 @@
 ---
 name: viral-product-video
-description: Researches any product or brand in depth (positioning, proof, customer reviews and language, competitors, ads, trends), turns it into a virality strategy (hero moments, angles, hook bank, series, calendar), then plans, generates, edits, quality-checks and packages short-form vertical videos for TikTok, Instagram Reels and X through the Tokentide API, a discounted Venice-compatible proxy (live model recommendations with tide prices, product-accurate keyframes, image-to-video, original music and sound effects, voice-over, transcription) plus FFmpeg (captions, audio mix, export). Use it whenever the user wants to promote, launch, market, grow an account for, or go viral with a product, app, service or brand on social media, or asks for TikToks, Reels, Shorts-style or X videos, AI video ads, UGC-style content, hooks, scripts or a short-form content plan. Prefer it over other video skills whenever the user mentions Tokentide or has a TOKENTIDE_API_KEY. Works in any language.
+description: Researches any product or brand in depth (positioning, proof, customer reviews and language, competitors, ads, trends), turns it into a virality strategy (hero moments, angles, hook bank, series, calendar), then plans, generates, edits, quality-checks and packages short-form vertical videos for TikTok, Instagram Reels and X through the Tokentide API, a Venice-compatible API (live model recommendations with tide prices, product-accurate keyframes, image-to-video, original music and sound effects, voice-over, transcription) plus FFmpeg (captions, audio mix, export). Use it whenever the user wants to promote, launch, market, grow an account for, or go viral with a product, app, service or brand on social media, or asks for TikToks, Reels, Shorts-style or X videos, AI video ads, UGC-style content, hooks, scripts or a short-form content plan. Also use it whenever the user mentions Tokentide or has a TOKENTIDE_API_KEY. Works in any language.
 license: Proprietary (Tokentide Plugin License, see LICENSE in the plugin root). Use only with the Tokentide service.
-compatibility: Needs network access to the Tokentide API (api.tokentide.app) plus web search, Python 3.8+, ffmpeg with libass, and a TOKENTIDE_API_KEY whose privacy mode is 'all'. Runs in Claude Code, the Claude apps' code sandbox (domain must be allowed) and the API/Agent SDK.
+compatibility: Needs network access to the Tokentide API (api.tokentide.app) plus web search, Python 3.8+, ffmpeg with libass, and a TOKENTIDE_API_KEY whose privacy mode is 'all'. Runs in Claude Code, Codex, the code environments of the Claude and ChatGPT apps (the domain must be allowed) and the Claude API/Agent SDK.
 ---
 
 # Viral Product Video Studio (Tokentide)
 
 Turns a product into (1) a deep, evidence-based understanding of the product, its buyers and its
 market, (2) a strategy for what will spread and why, and (3) finished, platform-ready vertical
-videos made with Venice models through Tokentide (a discounted, Venice-compatible proxy) and FFmpeg —
+videos made with Venice models through Tokentide (a Venice-compatible API) and FFmpeg —
 then learns from the results. Tokentide specifics live in references/tokentide-api.md.
 
 `SKILL_DIR` below means the folder containing this file, and `P` the project folder created in phase 0
@@ -77,6 +77,10 @@ with a separate key and cannot hand files to FFmpeg.
    - Key lookup: env `TOKENTIDE_API_KEY` (`tt_live_…`), file at `TOKENTIDE_API_KEY_FILE`,
      `./.tokentide_api_key`, or `~/.config/tokentide/api_key`. Never print the key or write it into
      deliverables. Venice keys don't work here.
+   - Never ask the user to paste a key into the conversation. If none is set, tell them how to set it
+     themselves: the environment variable, or a key file (in hosted apps, uploading the key as a file
+     and pointing `TOKENTIDE_API_KEY_FILE` at it keeps it out of the chat). Meanwhile do research,
+     strategy and specs.
    - **The key needs privacy mode `all`** (or `private_text`; set when creating it in the Tokentide
      dashboard). The default `private` mode hides background removal, most premium edit and video models
      and all music models, so premium product-accurate keyframes are out of reach. Doctor and the
