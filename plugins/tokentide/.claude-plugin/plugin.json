@@ -1,7 +1,7 @@
 {
   "name": "tokentide",
   "displayName": "Tokentide",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Use the Tokentide API from Claude: live tide prices, Low Tide, quotes and cost estimates, the model catalog, your balance and usage, and paid calls under your own price caps, including image, video and music generation. Includes a skill that researches a product and turns it into short-form vertical videos for TikTok, Instagram Reels and X with Tokentide's models.",
   "author": {
     "name": "Tokentide",

@@ -286,7 +286,7 @@ def _fill_slots(data, root, max_inflight):
             print(f"queued {rec['key']} ({rec['model']}) id={rec['queue_id']}")
         except api.APIError as e:
             if e.code == "rate_limited":
-                print(f"  {rec['key']}: account job limit reached; will retry next poll")
+                print(f"  {rec['key']}: {(e.message or 'rate limited').splitlines()[0][:220]} Will retry next poll.")
                 break
             if e.code == "epoch_rollover":
                 print(f"  {rec['key']}: queue closed for the daily reset (00:00 UTC); re-run poll after midnight UTC")

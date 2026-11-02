@@ -31,6 +31,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import webbrowser
 from pathlib import Path
@@ -55,21 +56,43 @@ def hostname() -> str:
     return name[:40] or "this computer"
 
 
+def same_site(a: str | None, b: str | None) -> bool:
+    """api.tokentide.app and tokentide.app (or one host on another port) are the same site; a bare TLD is not."""
+    a, b = (a or "").lower(), (b or "").lower()
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    short, long = sorted((a, b), key=len)
+    return "." in short and long.endswith("." + short)
+
+
 def post(path: str, body: dict, bearer: str | None = None, timeout: int = 30) -> dict:
     url = f"{api.site_url()}{path}"
     if not api.secure_url(url):
         raise SystemExit(f"Refusing to talk to {url} over plain http: the sign-in endpoints carry keys. "
                          "Use an https TOKENTIDE_SITE_URL / TOKENTIDE_BASE_URL.")
     headers = {"Content-Type": "application/json", "Accept": "application/json",
-               "User-Agent": "tokentide-video-skill/1.2 (auth.py)"}
+               "User-Agent": "tokentide-video-skill/1.2.1 (auth.py)"}
     if bearer:
         headers["Authorization"] = f"Bearer {bearer}"
-    req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), method="POST", headers=headers)
-    for attempt in range(3):
+    data = json.dumps(body).encode("utf-8")
+    attempt = hops = 0
+    while True:
+        req = urllib.request.Request(url, data=data, method="POST", headers=headers)
         try:
             with common.urlopen(req, timeout=timeout) as r:
                 return json.loads(r.read().decode("utf-8") or "{}")
         except urllib.error.HTTPError as e:
+            # urllib never re-sends a POST after a 307/308. Follow one (at most 3) when it stays on the same
+            # site over TLS, e.g. api.tokentide.app -> tokentide.app; the code or key goes nowhere else.
+            location = e.headers.get("Location") if e.code in (307, 308) and e.headers else None
+            if location and hops < 3:
+                target = urllib.parse.urljoin(url, location)
+                if api.secure_url(target) and same_site(urllib.parse.urlsplit(url).hostname,
+                                                        urllib.parse.urlsplit(target).hostname):
+                    url, hops = target, hops + 1
+                    continue
             raw = e.read() or b""
             try:
                 j = json.loads(raw.decode("utf-8"))
@@ -81,13 +104,13 @@ def post(path: str, body: dict, bearer: str | None = None, timeout: int = 30) ->
                             str(j.get("message") or raw[:200].decode("utf-8", "replace") or f"HTTP {e.code}"), j) from None
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
             if attempt < 2 and "CERTIFICATE_VERIFY_FAILED" not in str(e):
-                time.sleep(2 * (attempt + 1))
+                attempt += 1
+                time.sleep(2 * attempt)
                 continue
             hint = ("This Python has no CA certificates: set SSL_CERT_FILE to a CA bundle (macOS python.org builds: run "
                     "'Install Certificates.command' in the Python folder)." if "CERTIFICATE_VERIFY_FAILED" in str(e)
                     else f"Is {api.site_url()} reachable from here (sandbox network allowlist)?")
             raise SystemExit(f"Network error talking to {url}: {e}. {hint}") from None
-    raise SystemExit("unreachable")
 
 
 # ---------------------------------------------------------------- the key file

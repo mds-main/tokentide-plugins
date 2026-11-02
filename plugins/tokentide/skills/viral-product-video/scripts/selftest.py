@@ -258,7 +258,8 @@ class Mock(BaseHTTPRequestHandler):
                                                 "spendable_usd": f"{20 - STATE['spent']:.2f}"},
                                     "spend_today": {"charged_usd": f"{STATE['spent']:.4f}", "list_usd": "0", "savings_usd": "0"},
                                     "limits": {"requests_per_minute_per_key": 60, "concurrency": 4,
-                                               "image_requests_per_minute": 30}})
+                                               "image_requests_per_minute": 30,
+                                               "spend_velocity_usd_per_minute": "0.69"}})
         if p.startswith("/image/styles"):
             return self._send(200, {"data": ["Cinematic"]})
         self._err(404, "not_found", f"Unknown route {p}")
@@ -320,8 +321,10 @@ class Mock(BaseHTTPRequestHandler):
             if key in STATE["idem"]:
                 return self._err(409, "duplicate_request", "Idempotency-Key already used")
             STATE["queue_calls"] += 1
-            if STATE["queue_calls"] == 1:
-                return self._err(429, "rate_limited", "Too many requests", headers={"Retry-After": "1"})
+            if STATE["queue_calls"] == 1:  # like Tokentide's spend velocity: the minute is full, the next one admits it
+                return self._err(429, "rate_limited", "Spend velocity limit reached: this account may start $0.69 of "
+                                 "requests per minute at the Venice list price. This minute already holds $0.72. Retry in 1 s: "
+                                 "the first request of a minute is always admitted.", headers={"Retry-After": "1"})
             if key:
                 STATE["idem"].add(key)
             allowed = {"model", "prompt", "negative_prompt", "duration", "resolution", "aspect_ratio", "audio",
@@ -378,6 +381,24 @@ class Mock(BaseHTTPRequestHandler):
             return self._send(200, {"choices": [{"message": {"role": "assistant", "content": content}}]},
                               charge=self._charge(0.003))
         self._err(404, "not_found", f"Unknown route {p}")
+
+
+class SiteRedirect(BaseHTTPRequestHandler):
+    """A front host that answers like tokentide.app's API host used to: 308 to another origin of the same site."""
+    protocol_version = "HTTP/1.1"
+    target = ""
+
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        if n:
+            self.rfile.read(n)
+        self.send_response(308)
+        self.send_header("Location", f"{self.target}{self.path}")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
 
 SPEC = {
@@ -446,12 +467,12 @@ def main():
     spec = root / "briefs" / "v01.json"
     results = []
 
-    def run(name, *args, ok=(0,), expect=(), absent=()):
+    def run(name, *args, ok=(0,), expect=(), absent=(), extra_env=None):
         """Runs a script; passes when the exit code is in `ok`, every `expect` text is in its output and no
         `absent` text is (e.g. a key that must never be printed)."""
         t0 = time.time()
-        r = subprocess.run([sys.executable, str(HERE / args[0]), *map(str, args[1:])], env=env, cwd=work,
-                           capture_output=True, text=True)
+        r = subprocess.run([sys.executable, str(HERE / args[0]), *map(str, args[1:])], env={**env, **(extra_env or {})},
+                           cwd=work, capture_output=True, text=True)
         out = r.stdout + r.stderr
         missing = [e for e in expect if e not in out] + [f"(must not print) {x[:12]}…" for x in absent if x in out]
         good = r.returncode in ok and not missing
@@ -483,6 +504,21 @@ def main():
         expect=("already used or has expired", "link_local_scripts"))
     run("auth status (masked key, accepted)", "auth.py", "status", expect=(f"key …{linked[-4:]}", "accepted"),
         absent=(linked,))
+    # A host that answers the sign-in routes with a 308 to another origin of the same site (as api.tokentide.app
+    # once did): auth.py re-sends the POST there, over TLS or loopback only, and never to another site.
+    redir = ThreadingHTTPServer(("127.0.0.1", 0), SiteRedirect)
+    SiteRedirect.target = f"http://127.0.0.1:{srv.server_port}"
+    threading.Thread(target=redir.serve_forever, daemon=True).start()
+    run("exchange follows a same-site 308", "auth.py", "exchange", "--code", mint_link_code(),
+        expect=("linked: key …",), extra_env={"TOKENTIDE_SITE_URL": f"http://127.0.0.1:{redir.server_port}"})
+    SiteRedirect.target = f"http://localhost:{srv.server_port}"  # another host: not followed
+    run("exchange does not follow a 308 to another host", "auth.py", "exchange", "--code", mint_link_code(), ok=(1,),
+        expect=("http_308",), extra_env={"TOKENTIDE_SITE_URL": f"http://127.0.0.1:{redir.server_port}"})
+    redir.shutdown()
+    import auth  # noqa: E402  (the redirect rule, in process)
+    check("same-site rule: api.tokentide.app ↔ tokentide.app only",
+          auth.same_site("api.tokentide.app", "tokentide.app") and not auth.same_site("tokentide.app.evil.com", "tokentide.app")
+          and not auth.same_site("eviltokentide.app", "tokentide.app") and not auth.same_site("api.tokentide.app", "app"))
 
     # common.probe without ffprobe (the plugin-managed FFmpeg ships none) reads `ffmpeg -i` correctly.
     for name, want in (("video.mp4", {"vcodec": "h264", "width": 720, "height": 1280, "pix_fmt": "yuv420p",
@@ -497,7 +533,7 @@ def main():
     run("init project", "init_project.py", "Selftest Bottle", "--root", work / "projects", "--budget-usd", "20")
     ff(["-f", "lavfi", "-i", "testsrc2=size=1200x1600:rate=1", "-frames:v", "1", root / "assets/product/front.jpg"])
     ff(["-f", "lavfi", "-i", "color=c=white:s=400x120,format=rgba", "-frames:v", "1", root / "assets/brand/logo.png"])
-    run("doctor (status/market/account/catalog)", "doctor.py", "--project", root)
+    run("doctor (status/market/account/catalog)", "doctor.py", "--project", root, expect=("spend velocity $0.69/min",))
     run("models list (cache)", "models.py", "list", "--type", "all", "--out", root / "models.json")
     r = run("models recommend (tide prices + quotes)", "models.py", "recommend", "--project", root)
     print("\n".join(l for l in r.stdout.splitlines() if l.startswith(("| Premium", "| Balanced", "| Budget", "| Newest", "| Private", "## ", "> "))))
