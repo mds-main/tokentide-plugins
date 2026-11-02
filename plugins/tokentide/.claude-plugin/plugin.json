@@ -1,7 +1,7 @@
 {
   "name": "tokentide",
   "displayName": "Tokentide",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Use the Tokentide API from Claude: live tide prices, Low Tide, quotes and cost estimates, the model catalog, your balance and usage, and paid calls under your own price caps. Includes a skill that researches a product and turns it into short-form vertical videos for TikTok, Instagram Reels and X with Tokentide's models.",
   "author": {
     "name": "Tokentide",
@@ -13,7 +13,7 @@
   "license": "LicenseRef-Tokentide-Proprietary",
   "keywords": ["tokentide", "venice", "ai-models", "pricing", "low-tide", "mcp", "video", "marketing"],
   "icon": "./assets/icon.png",
-  "documentationUrl": "https://tokentide.app/docs/claude",
+  "documentationUrl": "https://tokentide.app/docs/mcp",
   "supportUrl": "https://tokentide.app/claude#support",
   "privacyPolicyUrl": "https://tokentide.app/legal/privacy",
   "termsOfServiceUrl": "https://tokentide.app/legal/terms"

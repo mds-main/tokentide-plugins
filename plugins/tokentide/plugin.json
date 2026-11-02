@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "tokentide",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Use the Tokentide API from ChatGPT and Codex: live model prices and the tide table, quotes and cost estimates, the model catalog, your balance and usage, and paid model calls within your connection's limits. Includes a skill that researches a product and turns it into short-form vertical videos for TikTok, Instagram Reels and X with Tokentide's models.",
   "author": {
     "name": "Tokentide",
