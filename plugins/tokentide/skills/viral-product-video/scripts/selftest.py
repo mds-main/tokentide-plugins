@@ -259,7 +259,8 @@ class Mock(BaseHTTPRequestHandler):
                                     "spend_today": {"charged_usd": f"{STATE['spent']:.4f}", "list_usd": "0", "savings_usd": "0"},
                                     "limits": {"requests_per_minute_per_key": 60, "concurrency": 4,
                                                "image_requests_per_minute": 30,
-                                               "spend_velocity_usd_per_minute": "0.69"}})
+                                               "spend_velocity_usd_per_minute": "0.69",
+                                               "running_requests_usd": "4.32"}})
         if p.startswith("/image/styles"):
             return self._send(200, {"data": ["Cinematic"]})
         self._err(404, "not_found", f"Unknown route {p}")
@@ -322,10 +323,9 @@ class Mock(BaseHTTPRequestHandler):
                 return self._err(409, "duplicate_request", "Idempotency-Key already used")
             STATE["queue_calls"] += 1
             if STATE["queue_calls"] == 1:  # like Tokentide's spend velocity: the minute is full, the next one admits it
-                return self._err(429, "rate_limited", "Spend velocity limit reached: this account may start $0.69 of "
-                                 "requests per minute at the Venice list price, whatever it is charged. This minute holds "
-                                 "$0.72. Retry in 1 s, when the next minute starts. A request of any size is admitted while "
-                                 "the minute holds less than the limit.", headers={"Retry-After": "1"})
+                return self._err(429, "rate_limited", "Spend velocity limit reached: this account's requests that finished "
+                                 "this minute cost $0.72 at the Venice list price, whatever they were charged, and the limit "
+                                 "is $0.69 per minute. Retry in 1 s, when the next minute starts.", headers={"Retry-After": "1"})
             if key:
                 STATE["idem"].add(key)
             allowed = {"model", "prompt", "negative_prompt", "duration", "resolution", "aspect_ratio", "audio",
@@ -534,7 +534,7 @@ def main():
     run("init project", "init_project.py", "Selftest Bottle", "--root", work / "projects", "--budget-usd", "20")
     ff(["-f", "lavfi", "-i", "testsrc2=size=1200x1600:rate=1", "-frames:v", "1", root / "assets/product/front.jpg"])
     ff(["-f", "lavfi", "-i", "color=c=white:s=400x120,format=rgba", "-frames:v", "1", root / "assets/brand/logo.png"])
-    run("doctor (status/market/account/catalog)", "doctor.py", "--project", root, expect=("spend velocity $0.69/min",))
+    run("doctor (status/market/account/catalog)", "doctor.py", "--project", root, expect=("spend velocity $0.69/min", "running requests up to $4.32"))
     run("models list (cache)", "models.py", "list", "--type", "all", "--out", root / "models.json")
     r = run("models recommend (tide prices + quotes)", "models.py", "recommend", "--project", root)
     print("\n".join(l for l in r.stdout.splitlines() if l.startswith(("| Premium", "| Balanced", "| Budget", "| Newest", "| Private", "## ", "> "))))

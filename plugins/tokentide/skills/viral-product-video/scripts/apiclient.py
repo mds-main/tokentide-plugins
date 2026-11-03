@@ -56,9 +56,9 @@ HINTS = {
     "model_not_allowed": "The key's privacy mode doesn't allow this model. Background removal, most premium image-edit and video models and every music model are Anonymized: create a key with privacy mode 'all' (or 'private_text').",
     "payload_too_large": "Body over 4.5 MB. Use smaller inputs or public URLs for images/video (scripts shrink images automatically).",
     "rate_limited": "A Tokentide limit (the message names it): requests/min, concurrency, image requests/min, quotes/min, "
-                    ">8 unfinished video+music jobs, or spend velocity (list-$ of requests started per minute, counted even "
-                    "on free use; a request of any size passes while the minute is under the limit, so a large job starts "
-                    "at the next minute). "
+                    ">8 unfinished video+music jobs, spend velocity (list-$ of requests finished per minute, counted even "
+                    "on free use, so a large job starts at the next minute) or running requests (list-$ their worst cases "
+                    "hold; room comes back in seconds). "
                     "Scripts wait for Retry-After; `get_account` / doctor show the limits.",
     "price_above_limit": "Current multiplier is above your max multiplier; wait or raise TOKENTIDE_MAX_MULTIPLIER.",
     "cost_above_limit": "Worst-case charge exceeds X-Tokentide-Max-Cost-USD; raise the cap or shrink the job.",

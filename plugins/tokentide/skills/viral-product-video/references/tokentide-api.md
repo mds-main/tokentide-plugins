@@ -95,14 +95,16 @@ Not offered: voice cloning (`/audio/voices`) and voice changer. Not proxied: Ven
 | Requests/min per key | 60 | 600 | 3,000 |
 | Concurrent in-flight requests per account | 4 | 32 | 128 |
 | **Image requests/min per account** | **2** | 6 | 12 |
-| Spend velocity (list-$/min, share of day's capacity, ≥ $0.10) | 0.2% | 1% | 5% |
-**Spend velocity** (`/account` → `limits.spend_velocity_usd_per_minute`) counts every request at the **list**
-price, whatever it is charged (Low Tide, the tide and free use included): at its worst case while it runs, at its
-actual cost once it finishes. A request of any size passes while the minute holds less than the limit (a $3.55
-video clip on a $0.69/min limit); after that, requests get `429 rate_limited` ("Spend velocity limit reached …
-this minute holds $X …") with `Retry-After: 2` while requests still running hold the room, else until the next
-minute. A queued video or music job counts at its quoted price, so a batch of large jobs starts about one per
-minute: the scripts wait and retry by themselves; don't stop them, and don't treat it as a daily limit.
+| Spend velocity (list-$/min of finished requests, share of day's capacity, ≥ $0.10) | 0.2% | 1% | 5% |
+| Running requests (list-$ at worst case, share of day's capacity, ≥ $1) | 5% | 15% | 30% |
+**Spend velocity** (`/account` → `limits.spend_velocity_usd_per_minute`) is what the account's requests that
+finish in a minute may cost at the **list** price and their actual cost, whatever they are charged (Low Tide, the
+tide and free use included). A queued video or music job finishes when it is queued, at its quoted price, so on a
+$0.69/min limit a $3.55 clip fills the minute and the next job gets `429 rate_limited` ("Spend velocity limit
+reached … finished this minute cost $X …") with `Retry-After` until the next minute: a batch of large jobs starts
+about one per minute. **Running requests** (`limits.running_requests_usd`) caps what the account's running requests
+hold at their worst case; one that doesn't fit waits 2 s (`Retry-After: 2`), and one always runs when none is
+running. The scripts wait and retry by themselves; don't stop them, and don't treat either as a daily limit.
 Also: request body 4.5 MB (direct) · max request duration 800 s · ≤ 8 unfinished video/music jobs per
 account · video/music polling ≥ 2 s apart (≈5 s is enough) · quotes 60/min per account (each queue call
 also counts one) · video prompt
@@ -140,7 +142,7 @@ Venice's 400/404/413/415/422 bodies pass through unchanged.
 | `payload_too_large` | 413 | checked locally before sending; images are shrunk |
 | `price_above_limit` / `cost_above_limit` | 409 | wait (price) or raise the cap |
 | `duplicate_request` | 409 | the first attempt went through; its response was lost (not replayed) |
-| `rate_limited` | 429 | wait `Retry-After` (+ jitter), retry; the message names the limit (spend velocity: about one large job per minute, see §3) |
+| `rate_limited` | 429 | wait `Retry-After` (+ jitter), retry; the message names the limit (spend velocity: about one large job per minute; running requests: a few seconds; see §3) |
 | `internal_error` / `upstream_unavailable` | 500 / 502 | exponential backoff 0.5→30 s |
 | `capacity_unavailable` / `epoch_rollover` | 503 | wait `Retry-After` if short; daily reset at 00:00 UTC |
 | `upstream_timeout` | 504 | not retried blindly |

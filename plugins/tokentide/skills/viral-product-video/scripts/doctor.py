@@ -131,10 +131,12 @@ def main():
              f"account: tier={acct.get('tier')} · spendable ${spendable} · today charged ${(acct.get('spend_today') or {}).get('charged_usd')}"
              + (" · free use: requests and quotes are charged $0" if free else ""))
         vel = lim.get("spend_velocity_usd_per_minute")
+        run = lim.get("running_requests_usd")
         line("OK", f"limits: {lim.get('requests_per_minute_per_key')} req/min/key · {lim.get('concurrency')} concurrent · "
                    f"{lim.get('image_requests_per_minute')} image req/min (scripts pace to this) · ≤8 unfinished video+music jobs"
-                   + (f" · spend velocity ${vel}/min at list price (a larger job starts once the minute is under it; counted even on free use)"
-                      if vel else ""))
+                   + (f" · spend velocity ${vel}/min at list price (finished requests, counted even on free use; "
+                      "a larger job starts at the next minute)" if vel else "")
+                   + (f" · running requests up to ${run} at worst case" if run else ""))
     except api.APIError as e:
         line("FAIL", f"account check failed: {str(e).splitlines()[0]}")
         ok = False
