@@ -323,8 +323,9 @@ class Mock(BaseHTTPRequestHandler):
             STATE["queue_calls"] += 1
             if STATE["queue_calls"] == 1:  # like Tokentide's spend velocity: the minute is full, the next one admits it
                 return self._err(429, "rate_limited", "Spend velocity limit reached: this account may start $0.69 of "
-                                 "requests per minute at the Venice list price. This minute already holds $0.72. Retry in 1 s: "
-                                 "the first request of a minute is always admitted.", headers={"Retry-After": "1"})
+                                 "requests per minute at the Venice list price, whatever it is charged. This minute holds "
+                                 "$0.72. Retry in 1 s, when the next minute starts. A request of any size is admitted while "
+                                 "the minute holds less than the limit.", headers={"Retry-After": "1"})
             if key:
                 STATE["idem"].add(key)
             allowed = {"model", "prompt", "negative_prompt", "duration", "resolution", "aspect_ratio", "audio",

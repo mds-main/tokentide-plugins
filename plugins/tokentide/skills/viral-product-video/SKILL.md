@@ -266,7 +266,7 @@ Every generated file has a `.json` sidecar with model, prompt and request id (pr
 | 403 model_not_allowed | the connection's privacy mode is too strict → the user sets mode `all` on the connection's key in the dashboard (or pick a Private option) |
 | network error | allowlist api.tokentide.app (or the `TOKENTIDE_BASE_URL` host); meanwhile finish research/specs |
 | 400 on a parameter | the error names the parameter and the accepted values (case-sensitive, e.g. `1080P`); `models.py show <id>` lists them; fix the spec. Unknown optional fields are dropped automatically |
-| 429 "Spend velocity limit reached" | not a daily limit: the account may start a list-price amount per minute (`get_account`, doctor). The first request of each minute always passes, so large video/music jobs start about one per minute: let the scripts wait and retry, and plan batches with that pace in mind (the video queue closes ~23:14 UTC) |
+| 429 "Spend velocity limit reached" | not a daily limit: the account may start a list-price amount per minute (`get_account`, doctor). A request counts at its worst case while it runs and at its actual cost once it finishes, and one of any size passes while the minute is under the limit, so large video/music jobs start about one per minute: let the scripts wait and retry, and plan batches with that pace in mind (the video queue closes ~23:14 UTC) |
 | 402 insufficient_balance / spend_limit_reached | tell the user: top up or raise the cap; offer Budget/Low Tide |
 | 413 payload_too_large | inputs are auto-shrunk; for video inputs pass a public https URL |
 | 503 epoch_rollover / queue closed | daily reset: queue after 00:00 UTC (quotes still work) |

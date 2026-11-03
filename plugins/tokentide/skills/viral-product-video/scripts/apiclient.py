@@ -57,7 +57,8 @@ HINTS = {
     "payload_too_large": "Body over 4.5 MB. Use smaller inputs or public URLs for images/video (scripts shrink images automatically).",
     "rate_limited": "A Tokentide limit (the message names it): requests/min, concurrency, image requests/min, quotes/min, "
                     ">8 unfinished video+music jobs, or spend velocity (list-$ of requests started per minute, counted even "
-                    "on free use; the first request of a minute always passes, so a large job starts at the next minute). "
+                    "on free use; a request of any size passes while the minute is under the limit, so a large job starts "
+                    "at the next minute). "
                     "Scripts wait for Retry-After; `get_account` / doctor show the limits.",
     "price_above_limit": "Current multiplier is above your max multiplier; wait or raise TOKENTIDE_MAX_MULTIPLIER.",
     "cost_above_limit": "Worst-case charge exceeds X-Tokentide-Max-Cost-USD; raise the cap or shrink the job.",

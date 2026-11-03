@@ -133,7 +133,7 @@ def main():
         vel = lim.get("spend_velocity_usd_per_minute")
         line("OK", f"limits: {lim.get('requests_per_minute_per_key')} req/min/key · {lim.get('concurrency')} concurrent · "
                    f"{lim.get('image_requests_per_minute')} image req/min (scripts pace to this) · ≤8 unfinished video+music jobs"
-                   + (f" · spend velocity ${vel}/min at list price (one larger job may start per minute; counted even on free use)"
+                   + (f" · spend velocity ${vel}/min at list price (a larger job starts once the minute is under it; counted even on free use)"
                       if vel else ""))
     except api.APIError as e:
         line("FAIL", f"account check failed: {str(e).splitlines()[0]}")
