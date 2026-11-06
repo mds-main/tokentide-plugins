@@ -2,7 +2,7 @@
 """Image generation & editing through Tokentide (Venice-compatible): keyframes, product composites, cutouts, upscales.
 
 Tokentide notes: bodies are capped at 4.5 MB (inputs are shrunk to fit; public https URLs pass through),
-image requests are paced to the account limit (2/min on new accounts), and safe_mode is always on.
+image requests are paced to the account limit (4/min on new accounts), and safe_mode is always on.
 
 Subcommands (`image.py <cmd> -h` for options):
   generate    text-to-image (scenes, backgrounds, product-free shots)  POST /image/generate

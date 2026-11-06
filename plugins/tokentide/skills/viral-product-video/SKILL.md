@@ -180,7 +180,7 @@ references/prompting.md).
 3. `image.py keyframes --spec P/briefs/vNN.json` — runs every shot's keyframe job in parallel (default 3
    variants; `multi-edit` with [scene, cutout] for product shots), appends a product-fidelity clause, and
    writes a contact sheet per shot to `P/qa/`.
-   Tokentide allows 2 image requests/min on new accounts (6 verified, 12 trusted): the scripts pace
+   Tokentide allows 4 image requests/min on new accounts (10 verified, 20 trusted): the scripts pace
    themselves, so a 9–15 image batch takes several minutes — say so rather than waiting silently.
    Inputs are shrunk automatically to fit Tokentide's 4.5 MB request limit; public https URLs pass through.
 4. **Look** at each sheet next to the real product photo; score with references/qa-rubric.md §1.

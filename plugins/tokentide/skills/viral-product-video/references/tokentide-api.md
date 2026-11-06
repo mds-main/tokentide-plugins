@@ -92,11 +92,11 @@ Not offered: voice cloning (`/audio/voices`) and voice changer. Not proxied: Ven
 ## 3. Limits
 | Limit | new | verified | trusted |
 |---|---|---|---|
-| Requests/min per key | 60 | 600 | 3,000 |
-| Concurrent in-flight requests per account | 4 | 32 | 128 |
-| **Image requests/min per account** | **2** | 6 | 12 |
-| Spend velocity (list-$/min of finished requests, share of day's capacity, ≥ $0.10) | 0.2% | 1% | 5% |
-| Running requests (list-$ at worst case, share of day's capacity, ≥ $1) | 5% | 15% | 30% |
+| Requests/min per key | 300 | 1,500 | 6,000 |
+| Concurrent in-flight requests per account | 16 | 64 | 256 |
+| **Image requests/min per account** | **4** | 10 | 20 |
+| Spend velocity (list-$/min of finished requests, share of day's capacity, ≥ $0.10) | 1% | 5% | 15% |
+| Running requests (list-$ at worst case, share of day's capacity, ≥ $1) | 25% | 50% | 100% |
 **Spend velocity** (`/account` → `limits.spend_velocity_usd_per_minute`) is what the account's requests that
 finish in a minute may cost at the **list** price and their actual cost, whatever they are charged (Low Tide, the
 tide and free use included). A queued video or music job finishes when it is queued, at its quoted price, so on a
@@ -120,7 +120,8 @@ override with `TOKENTIDE_IMAGE_RPM`), pace quotes to 50/min, and keep ≤ 6 vide
   at most 0.90× list; the **tide table** lowers it through the UTC day (2 Nov 2026: 0.72 at 00:00 UTC →
   ~0.50 at 24:00 UTC), so batch generation is cheapest late in the UTC day.
 - **Low Tide lane** (`X-Tokentide-Lane: lowtide`, non-streaming, best-effort, ~30% below Standard,
-  floor 0.20×): the scripts' `--lane lowtide` sends it with `X-Tokentide-Lowtide-Fallback: standard`.
+  floor 0.20×): the scripts' `--lane lowtide` sends it with `X-Tokentide-Lowtide-Fallback: standard`. It closes
+  until 00:00 UTC once 90% of the day's capacity is sold (`/market` → `lowtide.reason: nearly_sold_out`).
 - Price guards: `X-Tokentide-Max-Multiplier` (env `TOKENTIDE_MAX_MULTIPLIER`) → `409 price_above_limit`;
   `X-Tokentide-Max-Cost-USD` → `409 cost_above_limit` (video.py sends quote + 10% on every queue).
 - Response headers (non-streaming): `X-Tokentide-Charge-USD`, `X-Tokentide-List-Cost-USD`,
@@ -198,8 +199,8 @@ Direct bodies are capped at 4.5 MB (Venice accepts 25 MB). Options, in order of 
 | 4.5 MB body limit (Venice 25 MB) | big keyframes, two-frame I2V, video inputs | images auto-shrunk to fit; local video inputs over ~3 MB refused with "use a public URL" |
 | No upload path for video (Large Payload Lane has no video purpose) | Topaz upscale, video-to-video, Seedance extend/stitch need hosted files | `video.py upscale --video https://…` |
 | Default privacy mode hides background removal, most premium edit and video models, all music | premium keyframes, cutouts and music impossible with a default key | doctor and recommender warn; use a key in mode `all` (or `private_text`) |
-| Image requests 2/min on new accounts (6 verified, 12 trusted) | 9–15 keyframes ≈ 5–8 min | client-side pacing; ask Tokentide for a higher tier for volume |
-| ≤ 8 unfinished jobs, 4 concurrent requests (new tier) | big batches queue slowly | ≤ 6 in flight; the rest wait as "planned" and are queued by `poll` |
+| Image requests 4/min on new accounts (10 verified, 20 trusted) | 9–15 keyframes ≈ 3–4 min | client-side pacing; ask Tokentide for a higher tier for volume |
+| ≤ 8 unfinished jobs, 16 concurrent requests (new tier) | big batches queue slowly | ≤ 6 in flight; the rest wait as "planned" and are queued by `poll` |
 | Daily cutoff ~23:14 UTC (video) / ~23:39 UTC (music) until ~00:00 UTC | late-night batches stall | checked before queueing; queue after midnight UTC |
 | No download URLs; media deleted after delivery by default | a failed transfer could lose a paid clip | `delete_media_on_completion: false` → verify → complete |
 | Idempotency results not replayed; no job listing | a lost queue response = paid job without a queue_id | idempotency key prevents double charges; long timeouts; the gap remains |

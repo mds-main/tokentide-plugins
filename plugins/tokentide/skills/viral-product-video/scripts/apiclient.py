@@ -6,12 +6,12 @@ Key lookup: env TOKENTIDE_API_KEY, file at TOKENTIDE_API_KEY_FILE, ./.tokentide_
   %APPDATA%\\tokentide\\api_key). Plain key or a TOKENTIDE_API_KEY=... line. Keys start with tt_live_ /
   tt_test_ (test keys only work on preview/staging deployments and return mock output). Venice keys are rejected.
   With no key, scripts print what the agent runs to link one (`auth.py`); the user never pastes a key.
-Optional env: TOKENTIDE_LANE=standard|lowtide · TOKENTIDE_MAX_MULTIPLIER=0.6 · TOKENTIDE_IMAGE_RPM=2
+Optional env: TOKENTIDE_LANE=standard|lowtide · TOKENTIDE_MAX_MULTIPLIER=0.6 · TOKENTIDE_IMAGE_RPM=4
 
 Tokentide specifics handled here: 4.5 MB direct request bodies, OpenAI-style error envelope
 ({"error": {code, message, param, request_id}}), Retry-After on 429/503, no retry on 504,
 Idempotency-Key on paid POSTs, per-request charge headers (X-Tokentide-Charge-USD), and a
-per-account image request limit (2/min on new accounts).
+per-account image request limit (4/min on new accounts).
 """
 from __future__ import annotations
 
@@ -482,7 +482,7 @@ def rpm_for(kind) -> int | None:
                 rpm = int((account().get("limits") or {}).get("image_requests_per_minute") or 0) or None
             except (APIError, SystemExit, ValueError, TypeError):
                 rpm = None
-            rpm = rpm or 2  # 'new' tier default
+            rpm = rpm or 4  # 'new' tier default
     elif kind == "quote":
         rpm = 50  # Tokentide allows 60 quotes/min per account
     _RPM[kind] = rpm

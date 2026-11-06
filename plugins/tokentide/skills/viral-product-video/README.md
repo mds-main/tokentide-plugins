@@ -51,7 +51,7 @@ Then ask your agent, e.g. "Make our new insulated bottle go viral on TikTok, Ree
 - Prices = Venice list × the tide multiplier (cheapest late in the UTC day); `--lane lowtide` for
   cheaper best-effort generation; exact charges are logged per request (`budget.py --live`).
 - Inputs are shrunk to fit the 4.5 MB request limit; video inputs (upscale, video-to-video) need public URLs.
-- Image requests are paced to the account limit (2/min on new accounts); ≤ 6 video jobs in flight.
+- Image requests are paced to the account limit (4/min on new accounts); ≤ 6 video jobs in flight.
 - Video queue closes ~23:14 UTC until the 00:00 UTC reset (music ~23:39 UTC).
 - Original music and sound effects via Tokentide's queued audio jobs (`audio.py music|sfx`).
 - Not available through Tokentide: voice cloning.
