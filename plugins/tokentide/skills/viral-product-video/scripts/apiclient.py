@@ -63,7 +63,8 @@ HINTS = {
     "price_above_limit": "Current multiplier is above your max multiplier; wait or raise TOKENTIDE_MAX_MULTIPLIER.",
     "cost_above_limit": "Worst-case charge exceeds X-Tokentide-Max-Cost-USD; raise the cap or shrink the job.",
     "epoch_rollover": "Daily reset at 00:00 UTC. Video queue closes ~23:14 UTC, music/SFX ~23:39 UTC; retry after midnight UTC.",
-    "capacity_unavailable": "Discounted capacity sold out or sales paused; retry after Retry-After.",
+    "capacity_unavailable": "Discounted capacity sold out (until 00:00 UTC), less left than this request's worst case "
+                            "(not sold out: retried after a minute, or shrink the job) or sales paused; retry after Retry-After.",
     "upstream_timeout": "Venice didn't answer in time; don't blindly retry paid requests.",
     "duplicate_request": "Same Idempotency-Key already accepted: the first attempt went through but its response was lost (results are not replayed).",
     "lowtide_closed": "Low Tide lane closed; retry later or use the standard lane.",
@@ -71,7 +72,7 @@ HINTS = {
 STATUS_HINTS = {400: "Invalid parameter for this model (models.py show <id>).", 401: HINTS["invalid_api_key"],
                 402: "Balance or spend cap.", 403: HINTS["model_not_allowed"], 404: "Unknown model/route or expired job.",
                 413: HINTS["payload_too_large"], 422: "Content policy: rephrase; avoid real people and third-party brands.",
-                429: HINTS["rate_limited"], 503: "Daily reset, sold out or paused.", 504: HINTS["upstream_timeout"]}
+                429: HINTS["rate_limited"], 503: "Daily reset, sold out, nearly sold out or paused.", 504: HINTS["upstream_timeout"]}
 
 
 class APIError(Exception):

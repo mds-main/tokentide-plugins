@@ -145,7 +145,7 @@ Venice's 400/404/413/415/422 bodies pass through unchanged.
 | `duplicate_request` | 409 | the first attempt went through; its response was lost (not replayed) |
 | `rate_limited` | 429 | wait `Retry-After` (+ jitter), retry; the message names the limit (spend velocity: about one large job per minute; running requests: a few seconds; see §3) |
 | `internal_error` / `upstream_unavailable` | 500 / 502 | exponential backoff 0.5→30 s |
-| `capacity_unavailable` / `epoch_rollover` | 503 | wait `Retry-After` if short; daily reset at 00:00 UTC |
+| `capacity_unavailable` / `epoch_rollover` | 503 | wait `Retry-After` if short (a minute when less is left than the request's worst case: the day is not sold out, smaller jobs fit); sold out: daily reset at 00:00 UTC |
 | `upstream_timeout` | 504 | not retried blindly |
 Content violations on images return `200` with `x-venice-is-content-violation: true` (not charged).
 
