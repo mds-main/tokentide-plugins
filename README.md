@@ -1,15 +1,43 @@
-# Tokentide plugins for Claude, ChatGPT and Codex
+# Tokentide plugins and agent skills
 
-The official plugin marketplace of [Tokentide](https://tokentide.app): Venice AI models below list
-price, with a published intraday tide table, an opt-in Low Tide lane and zero data retention at
-Tokentide, on every model. The same marketplace serves Claude (`.claude-plugin/marketplace.json`) and
-ChatGPT and Codex (`.agents/plugins/marketplace.json`).
+The official plugin marketplace and agent skills of [Tokentide](https://tokentide.app): Venice AI models below list
+price, with a published intraday tide table, an opt-in Low Tide lane and zero data retention at Tokentide, on every
+model. The same marketplace serves Claude (`.claude-plugin/marketplace.json`) and ChatGPT and Codex
+(`.agents/plugins/marketplace.json`); the agent skill installs into any coding agent.
 
-| Plugin                           | What it adds                                                                                                                                                |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`tokentide`](plugins/tokentide) | The Tokentide connector (live prices, Low Tide, quotes, estimates, models, balance, usage and paid calls under your caps) and the viral product video skill |
+| Package                                       | What it adds                                                                                                                                                                           | Install                                                           |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`tokentide`](plugins/tokentide) plugin       | The Tokentide connector (live prices, Low Tide, quotes, estimates, models, balance, usage and paid calls under your caps) and the viral product video skill                            | [Claude, ChatGPT and Codex](#install-the-plugin)                  |
+| [`tokentide-api`](skills/tokentide-api) skill | Everything a coding agent needs to set up, build on and optimize the Tokentide API: account and key setup, model choice, cost control, reliability, errors, security and the EU AI Act | `npx skills add mds-main/tokentide-plugins --skill tokentide-api` |
 
-## Install
+## Agent skill for any coding agent
+
+The `tokentide-api` skill teaches Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI and other agents that read
+[Agent Skills](https://agentskills.io) how to use the Tokentide API well:
+
+- **Setup:** walks you through creating an account, an API key and adding credit, then checks it. You store the key
+  in `TOKENTIDE_API_KEY` yourself; the agent never asks you to paste it.
+- **Building:** the first call with the OpenAI SDKs, every endpoint and header, streaming, images, audio, video and
+  music, embeddings and decision models.
+- **Optimizing:** the right model for each task, an automatic task router, output limits, caching, Low Tide and the
+  tide table, price and spend caps, and cost per task.
+- **Running in production:** a fallback provider for sold-out days, retries, idempotency, every error code, security,
+  privacy levels and EU AI Act transparency (general information, not legal advice).
+
+Install it with the [skills CLI](https://skills.sh):
+
+```text
+npx skills add mds-main/tokentide-plugins --skill tokentide-api
+```
+
+Add `-g` to install it for your user instead of the current project, and `-a claude-code` (or `codex`, `cursor`,
+`github-copilot`, `gemini-cli`, …) to choose the agent. Its helper script, `scripts/tokentide.py`, only makes free,
+read-only calls to the Tokentide API and never prints your key.
+
+Already using the plugin? Keep it: the plugin brings the connector and the video skill, and the agent skill adds what
+you need to build on the API in your own code. They work side by side.
+
+## Install the plugin
 
 Claude Code:
 
@@ -44,8 +72,8 @@ Step-by-step instructions: https://tokentide.app/claude (Claude) and https://tok
 
 ## Updates
 
-This repository is published from the Tokentide monorepo, where the connector and the plugin are kept
-aligned with the API on every change, so changes made here directly are overwritten. Please report problems and
+This repository is published from the Tokentide monorepo, where the connector, the plugin and the agent
+skill are kept aligned with the API on every change, so changes made here directly are overwritten. Please report problems and
 suggestions as issues.
 
 ## License
