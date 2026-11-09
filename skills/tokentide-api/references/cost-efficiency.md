@@ -246,7 +246,7 @@ details = reply.usage.completion_tokens_details if reply.usage else None
 print("reasoning tokens (billed as output):", details.reasoning_tokens if details else 0)
 
 reply = tokentide.chat.completions.create(  # reasoning off, on a model that allows it
-    model="qwen3-5-35b-a3b",
+    model="qwen3-6-35b-a3b",
     max_completion_tokens=300,
     messages=[{"role": "user", "content": "Translate to French: Your order has shipped."}],
     extra_body={"reasoning": {"enabled": False}},  # raw JSON body: "reasoning": {"enabled": false}
