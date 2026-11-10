@@ -70,8 +70,9 @@ def same_site(a: str | None, b: str | None) -> bool:
 def post(path: str, body: dict, bearer: str | None = None, timeout: int = 30) -> dict:
     url = f"{api.site_url()}{path}"
     if not api.secure_url(url):
-        raise SystemExit(f"Refusing to talk to {url} over plain http: the sign-in endpoints carry keys. "
-                         "Use an https TOKENTIDE_SITE_URL / TOKENTIDE_BASE_URL.")
+        raise SystemExit(f"Refusing to talk to {url}: the sign-in endpoints carry keys, so they are called only on "
+                         "https://tokentide.app or its subdomains (or this machine). Unset TOKENTIDE_SITE_URL / "
+                         "TOKENTIDE_BASE_URL or set them to a Tokentide URL.")
     headers = {"Content-Type": "application/json", "Accept": "application/json",
                "User-Agent": "tokentide-video-skill/1.2.1 (auth.py)"}
     if bearer:

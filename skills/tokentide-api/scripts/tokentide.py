@@ -26,7 +26,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 DEFAULT_BASE = "https://api.tokentide.app/v1"
 USER_AGENT = "tokentide-skill/" + VERSION + " (+https://tokentide.app)"
 KEY_PREFIXES = ("tt_live_", "tt_test_")
@@ -68,6 +68,25 @@ def masked(key):
     return prefix + "..." + key[-4:] if len(key) > len(prefix) + 4 else prefix + "..."
 
 
+class _KeepKeyOnSameOrigin(urllib.request.HTTPRedirectHandler):
+    """Follows redirects, but the key goes only to the same scheme and host: urllib would otherwise
+    copy the Authorization header to wherever a redirect points."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is None:
+            return None
+        old, nxt = urllib.parse.urlsplit(req.full_url), urllib.parse.urlsplit(new.full_url)
+        if (nxt.scheme, nxt.netloc.lower()) != (old.scheme, old.netloc.lower()):
+            for name in [h for h in new.headers if h.lower() == "authorization"]:
+                del new.headers[name]
+        return new
+
+
+def _opener():
+    return urllib.request.build_opener(_KeepKeyOnSameOrigin())
+
+
 def get(path, params=None, key=None, accept="application/json"):
     query = urllib.parse.urlencode({k: v for k, v in (params or {}).items() if v is not None})
     url = base_url() + path + ("?" + query if query else "")
@@ -76,7 +95,7 @@ def get(path, params=None, key=None, accept="application/json"):
         headers["Authorization"] = "Bearer " + key
     request = urllib.request.Request(url, headers=headers, method="GET")
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with _opener().open(request, timeout=30) as response:
             body = response.read().decode("utf-8")
             return json.loads(body) if "json" in response.headers.get("Content-Type", "") else body
     except urllib.error.HTTPError as e:

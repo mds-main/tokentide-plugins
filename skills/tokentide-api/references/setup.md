@@ -94,8 +94,9 @@ Limits for new accounts: at most $1,000 per card top-up (more in higher tiers), 
 from at most 2 cards, and no saved card or auto top-up until the account is at least 7 days old **and** has added $100
 by card. Businesses can add a tax ID at checkout (reverse charge where the law provides for it).
 
-When offered, trial credit is claimed on the Get started page; accounts on free use (`free_use: true` in
-`GET /v1/account`) are not charged and need no credit.
+When offered, trial credit is claimed on the Get started page. An automatic check runs first, so the credit appears
+in the balance a minute or two later; one trial per person or organization. Accounts on free use (`free_use: true`
+in `GET /v1/account`) are not charged and need no credit.
 
 ### Keep the balance topped up (once eligible)
 

@@ -88,7 +88,7 @@ exponential backoff with jitter. Fall back: what a Tokentide-first setup does wi
 | `duplicate_request` | 409 | The `Idempotency-Key` was already accepted in the last 24 hours | never | no | An earlier attempt ran and was charged; results are never replayed (see `GET /v1/account/usage`) |
 | `payload_too_large` | 413 | Body over 4.5 MB, or an upload over its declared or allowed size | never | no | Pass a public URL, or use the Large Payload Lane (≤ 25 MB) |
 | `unsupported_media_type` | 415 | `Content-Type` or encoding not accepted on this route | never | no | Send `application/json` (`multipart/form-data` where documented) |
-| `rate_limited` | 429 | A Tokentide rate limit, a congested model, the model's upstream limit, or the 4xx circuit breaker ([Rate limits](#rate-limits)) | wait, with jitter | yes (batch: wait) | Slow down; check the `X-RateLimit-*` headers and `GET /v1/account` |
+| `rate_limited` | 429 | A Tokentide rate limit, a congested model, the model's upstream limit, the 4xx circuit breaker, or too many requests cancelled before they started ([Rate limits](#rate-limits)) | wait, with jitter | yes (batch: wait) | Slow down; check the `X-RateLimit-*` headers and `GET /v1/account` |
 | `internal_error` | 500 | Unexpected error at Tokentide | backoff | yes | Retry with the same `Idempotency-Key`; quote `request_id` if it persists |
 | `upstream_unavailable` | 502 | Venice failed or was unreachable after Tokentide's retries (a model that keeps failing is skipped for up to 30 s, in `Retry-After`), or a non-streaming response over 64 MB | backoff | yes | Check https://tokentide.app/status. Over 64 MB fails again and is still charged: use `stream: true` or a smaller request |
 | `capacity_unavailable` | 503 | Day sold out; less left than this request's worst case; sales paused; too many requests that may run past the reset; market briefly unavailable; the model paused, failing, unpriced or with no Venice key free | wait | yes, and skip Tokentide until `Retry-After` | Read the [Retry-After](#retry-after) value; for one unavailable model, `X-Tokentide-Fallback-Models` moves the request |
@@ -178,6 +178,7 @@ cleanly with Tokentide's own error in the same shape (`code` `upstream_unavailab
 | `2` | `429`: running-requests limit | Wait: room comes back as your running requests finish |
 | `10` | `503 capacity_unavailable`: too many requests that may run past the daily reset | Wait a few seconds |
 | up to `30` | `429`: 4xx circuit breaker; `502` while a failing model is skipped | Fix the failing requests; fall back or wait |
+| up to `600` | `429`: too many requests cancelled before their first response | Keep requests open until the response starts; wait |
 | to the next minute | `429`: spending rate | Wait or fall back |
 | `59` | `503 capacity_unavailable` while `GET /v1/market` shows `sold_out: false`; `402 spend_limit_reached` when only this request is too large for the room left | Smaller requests still pass: lower `max_completion_tokens`, retry after a minute, or fall back meanwhile |
 | to 00:00 UTC (hours) | `503 capacity_unavailable`, sold out (`GET /v1/market`: `sold_out: true`, `reopens_at`) | Fall back until then; batch jobs pause |
@@ -238,6 +239,9 @@ and trust tier, never those of a Venice key. Venice's rate-limit headers never r
 - **The 4xx circuit breaker.** Too many failed requests would block a model at Venice for every customer, so a
   customer who causes more than **10 `4xx` errors at Venice within 30 seconds** gets `429 rate_limited` for 30
   seconds. Never retry a `4xx` unchanged.
+- **Requests cancelled before they start.** A request cancelled before its response starts costs nothing, but more
+  than **30 of them within 10 minutes** pause the account's requests with `429 rate_limited` and `Retry-After` for 10
+  minutes. Keep requests open until the response starts; set client timeouts that leave the model time to answer.
 - **Limited beta** (until general availability): one API key per account (keys the Tokentide plugin links for
   its local scripts don't count) and a daily spend limit across all keys and wallets, reported in
   `limits.account_daily_cap_usd`. Over it: `402 spend_limit_reached` with a `Retry-After` that counts down to

@@ -102,16 +102,17 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
      so and what to run. Call `link_local_scripts` again (if the connector's tools also fail, ask the user
      to reconnect it first, as above) and run the new exchange command. `auth.py status` shows which key
      is used (masked); `auth.py rotate` replaces it; `auth.py logout --revoke` ends it.
-   - Key lookup order: env `TOKENTIDE_API_KEY`, `TOKENTIDE_API_KEY_FILE`, `./.tokentide_api_key`, then the
-     file `auth.py` writes (`~/.config/tokentide/api_key`; Windows `%APPDATA%\tokentide\api_key`). An
-     env var wins over the linked key. Never print a key, paste it into chat or write it into
+   - Key lookup order: env `TOKENTIDE_API_KEY`, `TOKENTIDE_API_KEY_FILE`, the file `auth.py` writes
+     (`~/.config/tokentide/api_key`; Windows `%APPDATA%\tokentide\api_key`), then `./.tokentide_api_key`.
+     An env var wins over the linked key; a key file in the project folder does not. Never print a key, paste it into chat or write it into
      deliverables. Venice keys don't work here.
    - **Privacy mode `all`** (or `private_text`) is what the user picks when connecting, and the scripts'
      key inherits it. The default `private` mode hides background removal, most premium edit and video
      models and all music models; doctor and the recommender warn when this is the case, and the user can
      change the connection's key in the dashboard.
    - Host: `https://api.tokentide.app/v1` (default; sign-in calls go to the same host, so a sandbox only
-     needs that domain). `TOKENTIDE_BASE_URL` overrides it, e.g. for a preview deployment. `tt_test_` keys
+     needs that domain). `TOKENTIDE_BASE_URL` overrides it, but the key only goes to Tokentide hosts
+     (`*.tokentide.app`) or this machine; a `tt_test_` key may also go to a Vercel preview. `tt_test_` keys
      only work on preview/staging deployments and return mock output.
    - If the API is unreachable (sandbox allowlist; on Team/Enterprise plans owners control this in Admin
      settings → Capabilities), say so, use the connector's tools where they cover the phase, still do

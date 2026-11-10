@@ -168,7 +168,8 @@ Content violations on images return `200` with `x-venice-is-content-violation: t
   with `--lane lowtide` video.py caps each queue at the Standard quote + 10%.
 - **No download URL** — retrieve streams the file; media is deleted after delivery unless
   `delete_media_on_completion: false`. The skill sends `false`, verifies the file, then calls complete.
-- Durations must be fixed (`"5s"`); `"auto"`/`"-1"` are refused with `reference_video_urls`.
+- Durations must be fixed (`"5s"`); `"auto"`/`"-1"` (and an `aspect_ratio` of `"auto"`/`"adaptive"`) are refused with
+  `reference_video_urls`, and such a job is priced as if the references ran 15 s in all.
 - Music body: `model` (e.g. `elevenlabs-music`), `prompt`, `duration_seconds`, `force_instrumental`
   (queue only; other fields depend on the model). All music models are Anonymized (key mode `all` or
   `private_text`).

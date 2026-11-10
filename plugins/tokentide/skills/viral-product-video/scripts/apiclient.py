@@ -1,9 +1,11 @@
 """Dependency-free client for the Tokentide API — a Venice-compatible proxy with tide pricing.
 
 Base URL: https://api.tokentide.app/v1 (production); env TOKENTIDE_BASE_URL overrides it.
-Key lookup: env TOKENTIDE_API_KEY, file at TOKENTIDE_API_KEY_FILE, ./.tokentide_api_key, then the key file
-  that `auth.py` writes: ~/.config/tokentide/api_key ($XDG_CONFIG_HOME/tokentide when set; Windows
-  %APPDATA%\\tokentide\\api_key). Plain key or a TOKENTIDE_API_KEY=... line. Keys start with tt_live_ /
+Key lookup: env TOKENTIDE_API_KEY, file at TOKENTIDE_API_KEY_FILE, the key file that `auth.py` writes
+  (~/.config/tokentide/api_key; $XDG_CONFIG_HOME/tokentide when set; Windows %APPDATA%\\tokentide\\api_key),
+  then ./.tokentide_api_key (last, so a key file in a project folder never replaces the linked key).
+  The key and sign-in codes go only to https://tokentide.app or its subdomains, the Vercel URL of the
+  production project, or this machine; a tt_test_ key may also go to a Vercel preview deployment. Plain key or a TOKENTIDE_API_KEY=... line. Keys start with tt_live_ /
   tt_test_ (test keys only work on preview/staging deployments and return mock output). Venice keys are rejected.
   With no key, scripts print what the agent runs to link one (`auth.py`); the user never pastes a key.
 Optional env: TOKENTIDE_LANE=standard|lowtide · TOKENTIDE_MAX_MULTIPLIER=0.6 · TOKENTIDE_IMAGE_RPM=4
@@ -110,10 +112,23 @@ def site_url() -> str:
     return f"{u.scheme}://{u.netloc}"
 
 
-def secure_url(url: str) -> bool:
-    """Keys and codes travel over TLS only; plain http is allowed for this machine (the self-test's mock)."""
+LOOPBACK = ("127.0.0.1", "localhost", "::1")
+PRODUCTION_VERCEL_HOST = "tokentide-app.vercel.app"  # the production project's own Vercel URL
+
+
+def secure_url(url: str, key: str | None = None) -> bool:
+    """Keys and codes travel over TLS to Tokentide only: https://tokentide.app, its subdomains or the production
+    project's Vercel URL. Plain http or https is allowed for this machine (the self-test's mock). A tt_test_ key,
+    which only works on preview deployments, may also go to a Vercel preview URL."""
     u = urllib.parse.urlsplit(url)
-    return u.scheme == "https" or (u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost", "::1"))
+    h = (u.hostname or "").lower()
+    if u.scheme in ("http", "https") and h in LOOPBACK:
+        return True
+    if u.scheme != "https":
+        return False
+    if h == "tokentide.app" or h.endswith(".tokentide.app") or h == PRODUCTION_VERCEL_HOST:
+        return True
+    return bool(key) and key.startswith("tt_test_") and h.endswith(".vercel.app")
 
 
 def config_dir() -> Path:
@@ -148,8 +163,8 @@ def _read_key_file(c: Path) -> str:
 
 
 def key_source():
-    """(key, where it came from) — the first of env TOKENTIDE_API_KEY, TOKENTIDE_API_KEY_FILE,
-    ./.tokentide_api_key and the auth.py key file. ("", None) when there is none."""
+    """(key, where it came from) — the first of env TOKENTIDE_API_KEY, TOKENTIDE_API_KEY_FILE, the auth.py key
+    file and ./.tokentide_api_key. ("", None) when there is none."""
     key = os.environ.get("TOKENTIDE_API_KEY", "").strip()
     if key:
         return key, "env TOKENTIDE_API_KEY"
@@ -157,7 +172,7 @@ def key_source():
     if os.environ.get("TOKENTIDE_API_KEY_FILE"):
         cands.append(Path(os.environ["TOKENTIDE_API_KEY_FILE"]).expanduser())
     legacy = Path.home() / ".config" / "tokentide" / "api_key"
-    cands += [Path.cwd() / ".tokentide_api_key", key_file()] + ([legacy] if legacy != key_file() else [])
+    cands += [key_file()] + ([legacy] if legacy != key_file() else []) + [Path.cwd() / ".tokentide_api_key"]
     for c in cands:
         key = _read_key_file(c)
         if key:
@@ -321,10 +336,12 @@ def request(method, path, json_body=None, *, data=None, content_type=None, timeo
     url = path if path.startswith("http") else f"{base_url()}/{path.lstrip('/')}"
     hdrs = {"User-Agent": "tokentide-video-skill/1.2", "Accept": "*/*"}
     if auth:
-        if not secure_url(url):
-            raise APIError(0, f"Refusing to send the Tokentide key over plain http ({url.split('?')[0][:80]}). "
-                              "Use an https TOKENTIDE_BASE_URL.")
-        hdrs["Authorization"] = f"Bearer {get_api_key()}"
+        key = get_api_key()
+        if not secure_url(url, key):
+            raise APIError(0, f"Refusing to send the Tokentide key to {url.split('?')[0][:80]}: it goes only to "
+                              "https://tokentide.app or its subdomains (or this machine). Unset TOKENTIDE_BASE_URL "
+                              "or set it to a Tokentide URL.")
+        hdrs["Authorization"] = f"Bearer {key}"
     short = path if not path.startswith("http") else re.sub(r"\?.*", "", path)[:80]
     paid = method == "POST" and any(short.startswith(p) for p in PAID_PREFIXES)
     if paid or (method == "POST" and short.startswith(QUOTE_PREFIXES)):

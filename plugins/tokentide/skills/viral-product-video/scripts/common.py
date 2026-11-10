@@ -251,10 +251,34 @@ def ssl_context():
     return ctx
 
 
+def _redirect_handler():
+    import urllib.parse
+    import urllib.request
+
+    class KeepKeyOnSameOrigin(urllib.request.HTTPRedirectHandler):
+        """Follows redirects, but the API key goes only to the same scheme and host: urllib would
+        otherwise copy the Authorization header to wherever a redirect points, plain http included."""
+
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            new = super().redirect_request(req, fp, code, msg, headers, newurl)
+            if new is None:
+                return None
+            old, nxt = urllib.parse.urlsplit(req.full_url), urllib.parse.urlsplit(new.full_url)
+            if (nxt.scheme, nxt.netloc.lower()) != (old.scheme, old.netloc.lower()):
+                for name in [h for h in new.headers if h.lower() == "authorization"]:
+                    del new.headers[name]
+                for name in [h for h in new.unredirected_hdrs if h.lower() == "authorization"]:
+                    del new.unredirected_hdrs[name]
+            return new
+
+    return KeepKeyOnSameOrigin()
+
+
 def urlopen(req, timeout=60):
     import urllib.request
 
-    return urllib.request.urlopen(req, timeout=timeout, context=ssl_context())
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl_context()), _redirect_handler())
+    return opener.open(req, timeout=timeout)
 
 
 # ---------------------------------------------------------------- models cache

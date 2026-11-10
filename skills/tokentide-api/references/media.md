@@ -145,7 +145,8 @@ print(transcript.text)
   (`X-Tokentide-Max-Cost-USD` or `X-Tokentide-Max-Multiplier`; refusals are never charged) and send an
   `Idempotency-Key`; a retry with the same key gets `409 duplicate_request` and the first response is not
   replayed, so give `queue` a generous timeout. Low Tide (`X-Tokentide-Lane: lowtide`) works where allowed.
-- **Send a fixed video `duration`** (`"5s"`): with `reference_video_urls`, `"auto"` or `"-1"` is refused, and a
+- **Send a fixed video `duration`** (`"5s"`): with `reference_video_urls`, `"auto"` or `"-1"` is refused (so is an `aspect_ratio` of `"auto"` or
+  `"adaptive"`), the job is priced as if the reference videos ran 15 s in all, and a
   duration, resolution or aspect ratio the model doesn't offer gets `400 invalid_request` listing the accepted
   values. `audio` is on by default where offered; for image-to-video, pass the frame as `image_url`.
 - **Collect with `retrieve`** (`queue` never returns a download link): JSON with `status: "PROCESSING"` while it
@@ -270,7 +271,7 @@ print(res.json()["text"])
   on the premium model (`gpt-image-2`: $0.02 at low, $0.26 at high quality for 1K). Upscale instead of
   generating large (`flux-3-image`: 1K plus a 4× upscale $0.20, native 4K $0.98); edit rather than regenerate;
   ask for `transparent_background` (PNG or WebP, where supported) rather than pay for background removal; one
-  variant until the prompt works; leave `enhance_prompt` (extra charge, up to about 30 s) and web search off.
+  variant until the prompt works; leave `enhance_prompt` (extra charge, up to about 30 s) off; `enable_web_search` is refused on image generation.
 - **Video:** audio off for drafts; compose on stills, then animate the approved frame; draft short, small and
   fast; one action and one camera move per clip; join short clips rather than make one long, busy one.
 - **Music:** preview a short version first; length-banded prices round up (30 seconds on a 60-second band costs

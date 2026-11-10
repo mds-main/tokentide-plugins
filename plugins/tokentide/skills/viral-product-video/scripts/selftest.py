@@ -521,6 +521,24 @@ def main():
           auth.same_site("api.tokentide.app", "tokentide.app") and not auth.same_site("tokentide.app.evil.com", "tokentide.app")
           and not auth.same_site("eviltokentide.app", "tokentide.app") and not auth.same_site("api.tokentide.app", "app"))
 
+    # The key and sign-in codes go to Tokentide hosts or this machine only.
+    import apiclient as api  # noqa: E402
+    check("key hosts: Tokentide, its Vercel URL and loopback only",
+          api.secure_url("https://api.tokentide.app/v1") and api.secure_url("https://tokentide.app/api/plugin/x")
+          and api.secure_url("https://tokentide-app.vercel.app/v1") and api.secure_url("http://127.0.0.1:9/v1")
+          and not api.secure_url("http://api.tokentide.app/v1") and not api.secure_url("https://evil.example/v1")
+          and not api.secure_url("https://tokentide.app.evil.com/v1") and not api.secure_url("https://eviltokentide.app/v1")
+          and not api.secure_url("https://x.vercel.app/v1", "tt_live_abc")
+          and api.secure_url("https://x.vercel.app/v1", "tt_test_abc"))
+    run("the key is not sent to another host", "doctor.py", ok=(1,), expect=("Refusing to send the Tokentide key",),
+        absent=(linked,), extra_env={"TOKENTIDE_BASE_URL": "https://evil.example/v1"})
+    # A key file in the project folder never replaces the linked key.
+    (work / ".tokentide_api_key").write_text("tt_live_planted0000000000000000\n", encoding="utf-8")
+    current = file_key()  # the 308 exchange above linked a newer key
+    run("the linked key wins over ./.tokentide_api_key", "auth.py", "status", expect=(f"key …{current[-4:]}",),
+        absent=(current,))
+    (work / ".tokentide_api_key").unlink()
+
     # common.probe without ffprobe (the plugin-managed FFmpeg ships none) reads `ffmpeg -i` correctly.
     for name, want in (("video.mp4", {"vcodec": "h264", "width": 720, "height": 1280, "pix_fmt": "yuv420p",
                                       "has_audio": True, "acodec": "aac", "sample_rate": 48000, "channels": 1}),

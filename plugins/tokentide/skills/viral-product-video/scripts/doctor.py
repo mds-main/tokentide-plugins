@@ -96,6 +96,10 @@ def main():
             line("WARN", "tt_test_ keys only work on preview/staging deployments (mock output); use tt_live_ for production")
         if not key.startswith(("tt_live_", "tt_test_")):
             line("WARN", "key doesn't look like a Tokentide key (tt_live_/tt_test_)")
+        if not api.secure_url(base, key):
+            line("FAIL", f"Refusing to send the Tokentide key to {base}: it goes only to https://tokentide.app or its "
+                         "subdomains (or this machine). Unset TOKENTIDE_BASE_URL or set it to a Tokentide URL.")
+            sys.exit(1)
     if a.offline:
         sys.exit(0 if ok else 1)
     if a.project:
