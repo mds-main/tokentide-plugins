@@ -304,7 +304,8 @@ batch work.
   it.
 - `X-Tokentide-Debug: 1` adds, on errors too, `X-Tokentide-Debug-Timings` (ms: `auth`, `admit`, `lease`,
   `upstream_ttfb`, `overhead`, `total`), `X-Tokentide-Debug-Upstream-Status`, `X-Tokentide-Debug-Retries` and
-  `X-Tokentide-Debug-Upstream-Id`. Nothing extra is stored.
+  `X-Tokentide-Debug-Upstream-Id`. Nothing extra is stored. The upstream status and id are left out when Tokentide
+  answers with its own error; the error `code` is then what matters.
 - To `support@tokentide.app`, send the `X-Request-Id` (or your `X-Client-Request-Id`), the time in UTC, the
   host you called and the error `code`. Never send prompts or outputs.
 
