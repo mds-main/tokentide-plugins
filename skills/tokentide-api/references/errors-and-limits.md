@@ -146,6 +146,10 @@ data: {"error":{"message":"…","type":"server_error","code":"model_overloaded",
 data: [DONE]
 ```
 
+If the connection to Venice breaks instead (a reset, a stall or the request deadline), the stream still ends
+cleanly with Tokentide's own error in the same shape (`code` `upstream_unavailable` or `upstream_timeout`; on
+`/v1/responses` an `event: error`), so the SDK raises it like any other error.
+
 - Treat it as final: the stream is over. Tokentide never retries a request whose stream has started. If you
   still need the answer, send a new request (to Tokentide or to your fallback). The OpenAI SDKs raise it while
   you iterate, so put the `try` around the loop, not only around `create()`.
