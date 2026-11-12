@@ -41,7 +41,16 @@ set `TOKENTIDE_API_KEY` themselves, then check it with `scripts/tokentide.py che
    folder, or ask for a new link). The link should be opened in the same browser.
 5. Recommended: add a **passkey** (Face ID, Touch ID, Windows Hello, a phone or a security key) when the dashboard
    offers it. A passkey or two-factor authentication is required later to save a card and turn on auto top-up, and
-   when trial credit is offered, claiming it needs a verified email and a passkey.
+   when trial credit is offered, claiming it needs a verified email and an established GitHub account.
+
+Or sign up with **GitHub** where the sign-up page offers it (accept the Terms first): GitHub's verified email address
+is used, and the account signs in with GitHub from then on. An existing account connects GitHub under Settings →
+Security, never by a matching email address.
+
+Sign-ups are checked automatically before the account is created. If the page says the account could not be created,
+nothing was saved: the user can select **Request a review** on that page, and a person answers by email. Retrying with
+other addresses does not help and is not a workaround to suggest. Disposable (throwaway) mailboxes are not accepted,
+and a sign-up whose email is not confirmed within 24 hours is deleted (the user simply signs up again).
 
 Notes:
 
@@ -55,6 +64,8 @@ Notes:
 
 Fastest path: the dashboard's **Get started** page, https://tokentide.app/app/onboarding, walks through creating a
 key, copying a ready-made snippet, making a first request (the page shows it the moment it arrives) and adding credit.
+Before the account has credit, model calls answer `402 insufficient_balance`; the free `GET /v1/account` checks the
+key and the base URL in the meantime.
 
 Or create a key under **API keys**, https://tokentide.app/app/keys:
 
@@ -95,7 +106,9 @@ from at most 2 cards, and no saved card or auto top-up until the account is at l
 by card. Businesses can add a tax ID at checkout (reverse charge where the law provides for it).
 
 When offered, trial credit is claimed on the Get started page. An automatic check runs first, so the credit appears
-in the balance a minute or two later; one trial per person or organization. Accounts on free use (`free_use: true`
+in the balance a minute or two later; one trial per person or organization. Only an established GitHub account (old
+enough, a personal account, used for no other trial) earns it: sign up with GitHub, or connect it on the Get started
+page; a passkey alone earns none. Accounts on free use (`free_use: true`
 in `GET /v1/account`) are not charged and need no credit.
 
 ### Keep the balance topped up (once eligible)

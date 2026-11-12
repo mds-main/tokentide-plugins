@@ -26,7 +26,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
-VERSION = "1.0.4"
+VERSION = "1.0.8"
 DEFAULT_BASE = "https://api.tokentide.app/v1"
 USER_AGENT = "tokentide-skill/" + VERSION + " (+https://tokentide.app)"
 KEY_PREFIXES = ("tt_live_", "tt_test_")

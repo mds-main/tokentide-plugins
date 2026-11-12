@@ -4,7 +4,7 @@ description: Set up, build on and optimize the Tokentide API, the OpenAI- and Ve
 license: Proprietary (Tokentide Plugin License, see LICENSE). Use only with the Tokentide service.
 compatibility: Any agent that can write code or make HTTPS requests to api.tokentide.app. The optional helper script needs Python 3.8+ (standard library only) and network access to api.tokentide.app.
 metadata:
-  version: "1.0.4"
+  version: "1.0.8"
   author: Tokentide
   homepage: https://tokentide.app/docs/best-practices
 ---
@@ -51,8 +51,8 @@ Exit `0` means ready. Otherwise walk the user through the missing step below, in
 You cannot create accounts, keys or payments for them, and **you must never ask them to paste the key into the chat**:
 they set `TOKENTIDE_API_KEY` themselves and you run the check again.
 
-1. **Create an account** at https://tokentide.app/sign-up (email and password, an email link, or a wallet where
-   offered), then open the verification email. Adding a passkey is recommended.
+1. **Create an account** at https://tokentide.app/sign-up (email and password, an email link, GitHub or a wallet
+   where offered), then open the verification email. Adding a passkey is recommended.
 2. **Create an API key**: the guided page https://tokentide.app/app/onboarding, or **API keys** at
    https://tokentide.app/app/keys. The key is shown **once**: copy it straight into a password manager or secret
    store. Keep privacy mode `private` unless the app needs Anonymized models (`all`), or Anonymized image, video and
