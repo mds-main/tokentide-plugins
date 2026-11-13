@@ -63,7 +63,7 @@ Notes:
 ## 2. Create an API key
 
 Fastest path: the dashboard's **Get started** page, https://tokentide.app/app/onboarding, walks through creating a
-key, copying a ready-made snippet, making a first request (the page shows it the moment it arrives) and adding credit.
+key, copying a ready-made snippet, adding credit and making a first request (the page shows it the moment it arrives).
 Before the account has credit, model calls answer `402 insufficient_balance`; the free `GET /v1/account` checks the
 key and the base URL in the meantime.
 

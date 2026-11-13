@@ -4,7 +4,7 @@ description: Set up, build on and optimize the Tokentide API, the OpenAI- and Ve
 license: Proprietary (Tokentide Plugin License, see LICENSE). Use only with the Tokentide service.
 compatibility: Any agent that can write code or make HTTPS requests to api.tokentide.app. The optional helper script needs Python 3.8+ (standard library only) and network access to api.tokentide.app.
 metadata:
-  version: "1.0.8"
+  version: "1.0.9"
   author: Tokentide
   homepage: https://tokentide.app/docs/best-practices
 ---
