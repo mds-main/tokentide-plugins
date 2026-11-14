@@ -111,7 +111,10 @@ also counts one) · video prompt
 ≤ 32,000 chars · image `variants` 1–4 · Idempotency-Key ≤ 128 chars (dupes detected 24 h) · uploads
 20 per 10 min. Rate-limit headers: `X-RateLimit-Limit-Requests`, `X-RateLimit-Remaining-Requests`,
 `X-RateLimit-Reset-Requests` (e.g. `12s`), `Retry-After` on 429. More than 10 upstream 4xx errors in
-30 s triggers a 30-second 429 for the customer.
+30 s triggers a 30-second 429 for the customer. An account that never paid and gets hundreds of malformed-request
+errors (400, 404, 405, 413, 415) across many endpoints within one hour is suspended automatically and deleted
+after 14 days: fix a request after its first 4xx, never try variations in a loop. An account without credit gets
+20 video and music quotes a day (then 402): top up before quoting a whole storyboard.
 The scripts pace image calls to the account's `image_requests_per_minute` (read from `/account`,
 override with `TOKENTIDE_IMAGE_RPM`), pace quotes to 50/min, and keep ≤ 6 video jobs in flight.
 

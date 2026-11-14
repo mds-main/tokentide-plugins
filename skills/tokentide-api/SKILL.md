@@ -4,7 +4,7 @@ description: Set up, build on and optimize the Tokentide API, the OpenAI- and Ve
 license: Proprietary (Tokentide Plugin License, see LICENSE). Use only with the Tokentide service.
 compatibility: Any agent that can write code or make HTTPS requests to api.tokentide.app. The optional helper script needs Python 3.8+ (standard library only) and network access to api.tokentide.app.
 metadata:
-  version: "1.0.9"
+  version: "1.0.11"
   author: Tokentide
   homepage: https://tokentide.app/docs/best-practices
 ---
@@ -143,8 +143,11 @@ Apply these by default in code you write, and check for them in code you review.
    fallback: `references/reliability.md`.
 3. **Retry well.** `max_retries=0` on the Tokentide client when there is a fallback. Remember `Retry-After` and send
    traffic straight to the fallback until it passes (the 00:00 UTC reset on a sold-out day). Without a fallback, wait
-   for `Retry-After` on `429` and `503` and back off with jitter on `500` and `502`. Never resend a `4xx` unchanged.
-   Client timeouts must exceed the slowest request (up to 800 seconds).
+   for `Retry-After` on `429` and `503` and back off with jitter on `500` and `502`. Never resend a `4xx` unchanged,
+   and never probe endpoints with variations: an account that never paid and gets hundreds of `400`, `404`, `405`,
+   `413` or `415` errors across many endpoints within an hour is suspended automatically and deleted after 14 days
+   ([details](https://tokentide.app/docs/rate-limits#malformed-requests-across-many-endpoints)). Client timeouts must
+   exceed the slowest request (up to 800 seconds).
 4. **Send an `Idempotency-Key`** (created once per logical request, reused on every retry): a retry of a request
    that already ran gets `409 duplicate_request` instead of being charged twice.
 5. **Name backup models on Tokentide** with `X-Tokentide-Fallback-Models` (up to 3, same privacy level and features)

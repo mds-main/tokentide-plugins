@@ -239,6 +239,18 @@ and trust tier, never those of a Venice key. Venice's rate-limit headers never r
 - **The 4xx circuit breaker.** Too many failed requests would block a model at Venice for every customer, so a
   customer who causes more than **10 `4xx` errors at Venice within 30 seconds** gets `429 rate_limited` for 30
   seconds. Never retry a `4xx` unchanged.
+- **Malformed requests across many endpoints.** An app makes the odd malformed request; a scan of the API makes
+  hundreds. An account that has never made a payment and gets **hundreds of `400 invalid_request`, `404 not_found`,
+  `405 method_not_allowed`, `413 payload_too_large` or `415 unsupported_media_type` errors across many different
+  endpoints within one hour** is suspended automatically (its keys stop working) and deleted 14 days later unless
+  the suspension is lifted. Credit, limit and rate-limit errors never count, and an account that has paid is never
+  suspended for this. Fix a request after its first `4xx`; test error handling with a few requests, never a sweep
+  of every endpoint ([details](https://tokentide.app/docs/rate-limits#malformed-requests-across-many-endpoints)).
+- **Accounts without credit.** An account with no credit gets **20 video and music quotes a day** (the quote
+  endpoints and the quote each queue call makes), then `402 insufficient_balance` until it tops up; with credit, 60
+  a minute. New wallet accounts are limited per network and per day (`429 rate_limited`); a wallet that already has
+  an account is not affected. Many content-policy refusals in a day suspend an account that never paid
+  ([details](https://tokentide.app/docs/rate-limits#accounts-without-credit)).
 - **Requests cancelled before they start.** A request cancelled before its response starts costs nothing, but more
   than **30 of them within 10 minutes** pause the account's requests with `429 rate_limited` and `Retry-After` for 10
   minutes. Keep requests open until the response starts; set client timeouts that leave the model time to answer.
