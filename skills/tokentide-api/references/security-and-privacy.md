@@ -76,7 +76,7 @@ the rest keep working. Set each key under API keys → **Edit settings**:
 
 | Setting             | Least-privilege choice                                         | Effect                                                                                  |
 | ------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Privacy mode        | `private` (the default) unless the key needs Anonymized models | Other models answer `403 model_not_allowed`: a typo or a prompt can't reach them        |
+| Privacy mode | `private` unless the key needs Anonymized models (new keys start with `all`) | Other models answer `403 model_not_allowed`: a typo or a prompt can't reach them        |
 | IP allowlist        | Your servers' addresses or CIDR ranges                         | Other addresses get `403 ip_not_allowed`: a copied key is useless elsewhere             |
 | Spend caps          | Daily, weekly and monthly; at least a small daily cap          | `402 spend_limit_reached` at the cap. A cap of `0` pauses the key without revoking it   |
 | Requests per minute | Below the account's, for keys that need little                 | Bounds request floods                                                                   |
@@ -152,9 +152,9 @@ reads content depends on the level:
 
 | Key privacy mode    | May call                                                                                        | Use it for                                          |
 | ------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `private` (default) | Private, TEE and E2EE models only                                                               | Anything sensitive; every key by default            |
+| `private` | Private, TEE and E2EE models only | Anything sensitive |
 | `private_text`      | Text, embedding and decision models stay Private, TEE or E2EE; image, video and audio models (prompts included) may be Anonymized | Apps that need Anonymized media models but must keep text private |
-| `all`               | Every model                                                                                     | Claude, GPT and Gemini models, music (Anonymized only), most video models |
+| `all` (default for new keys) | Every model, Anonymized ones included | Claude, GPT and Gemini models, music (Anonymized only), most video models |
 
 - Pick the level per data class; give each workload the narrowest mode that works. Outside it, a model answers
   `403 model_not_allowed`: fix the key or the model, never route around it (another key, a fallback).
@@ -360,7 +360,7 @@ Incidents and maintenance: https://tokentide.app/status. Abuse reports: `abuse@t
 
 - [ ] Key server-side only, from `TOKENTIDE_API_KEY` or a secret manager; secret scanner before every push.
 - [ ] One key per app and environment (one in the beta): IP allowlist, daily cap, expiry where it fits.
-- [ ] Privacy mode `private` unless a model needs more; `python3 scripts/tokentide.py check` confirms it.
+- [ ] Privacy mode `private` unless a model needs more (new keys start with `all`); `python3 scripts/tokentide.py check` confirms it.
 - [ ] Account monthly cap, cap warnings, low-balance alert; auto top-up has a monthly maximum.
 - [ ] `max_completion_tokens` on every request; `X-Tokentide-Max-Cost-USD` where cost must stay bounded.
 - [ ] Per-user sign-in, rate limit, daily budget, input and answer size caps.

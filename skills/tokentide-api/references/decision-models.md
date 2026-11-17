@@ -50,7 +50,7 @@ options), probabilities you can act on (a chat model's self-rated confidence is 
 
 | Model        | Privacy                                                                                                | List price per million tokens | Limits                                                                          |
 | ------------ | ------------------------------------------------------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------- |
-| `clef-api`   | Private: works with the default privacy mode                                                           | $0.05 input, $0.05 output     | 32,768 tokens of state and questions                                            |
+| `clef-api`   | Private: works with every privacy mode | $0.05 input, $0.05 output     | 32,768 tokens of state and questions                                            |
 | `jev-latest` | Anonymized: the provider sees the state and the questions, never who you are. Needs privacy mode `all` | $0.042 input, output free     | 32,000 tokens for the state and the longest question; 64,000 with all questions |
 
 - Prices and limits as published when the docs were written: `GET /v1/models?type=decision` lists the current

@@ -106,10 +106,11 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
      (`~/.config/tokentide/api_key`; Windows `%APPDATA%\tokentide\api_key`), then `./.tokentide_api_key`.
      An env var wins over the linked key; a key file in the project folder does not. Never print a key, paste it into chat or write it into
      deliverables. Venice keys don't work here.
-   - **Privacy mode `all`** (or `private_text`) is what the user picks when connecting, and the scripts'
-     key inherits it. The default `private` mode hides background removal, most premium edit and video
-     models and all music models; doctor and the recommender warn when this is the case, and the user can
-     change the connection's key in the dashboard.
+   - **Privacy mode `all`** (preselected when connecting; `private_text` also works) is what the scripts'
+     key inherits from the connection. A key in mode `private` (the user's choice, or a key from before
+     2026-11-17) hides background removal, most premium edit and video models and all music models; doctor
+     and the recommender warn when this is the case, and the user can change the connection's key in the
+     dashboard.
    - Host: `https://api.tokentide.app/v1` (default; sign-in calls go to the same host, so a sandbox only
      needs that domain). `TOKENTIDE_BASE_URL` overrides it, but the key only goes to Tokentide hosts
      (`*.tokentide.app`) or this machine; a `tt_test_` key may also go to a Vercel preview. `tt_test_` keys

@@ -494,9 +494,9 @@ def cmd_recommend(a):
     privs = {privacy(m) for m in models}
     edit_models = [m for m in models if m.get("type") in ("image", "inpaint") and image_kind(m) == "edit"]
     if "anonymized" not in privs or not edit_models:
-        lines += ["> **Your key only sees Private models.** Tokentide keys default to privacy mode `private`, which hides "
-                  "the anonymized models: background removal, most premium image-edit and video models, and every music "
-                  "model. Create a key with privacy mode `all` (or `private_text`, which keeps only text models private) "
+        lines += ["> **Your key only sees Private models.** Its privacy mode is `private` (the default for keys made before "
+                  "2026-11-17), which hides the anonymized models: background removal, most premium image-edit and video models, and every music "
+                  "model. Set the key to privacy mode `all` (or `private_text`, which keeps only text models private) "
                   "in the Tokentide dashboard to get the full catalog.", ""]
     for job in jobs:
         if job not in JOBS:

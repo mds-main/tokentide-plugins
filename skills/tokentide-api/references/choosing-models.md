@@ -104,12 +104,13 @@ At every level Tokentide stores no prompts, files or outputs, and nobody past To
 
 | Privacy mode                     | The key may call                                                                                                              | Use it for                                                        |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `private` (default for new keys) | Private, TEE and E2EE models only                                                                                             | Anything sensitive                                                |
+| `private` | Private, TEE and E2EE models only | Anything sensitive                                                |
 | `private_text`                   | Text, embedding and decision models: Private, TEE or E2EE only. Image, video and audio models (prompts included) may be Anonymized | Apps that need Anonymized media models but must keep text private |
-| `all`                            | Every model, Anonymized ones included                                                                                         | Claude, GPT and Gemini models, `jev-latest`, Anonymized media     |
+| `all` (default for new keys) | Every model, Anonymized ones included | Claude, GPT and Gemini models, `jev-latest`, Anonymized media     |
 
-- **The user owns the key's privacy mode.** It is set per key in the dashboard
-  (https://tokentide.app/app/keys). Never widen it on your own: tell the user which model needs which mode and
+- **The user owns the key's privacy mode.** It is chosen when the key is created (`all` is preselected) and can be
+  changed per key in the dashboard (https://tokentide.app/app/keys). Keys created before 2026-11-17 kept their mode,
+  usually `private`. Never widen it on your own: tell the user which model needs which mode and
   that its provider will see the content.
 - **Give each workload a key with the narrowest mode that works.** During the limited beta an account has one
   API key: choose the narrowest mode the whole app needs.

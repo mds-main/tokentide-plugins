@@ -63,8 +63,8 @@ links them to the connection itself (the connector's `link_local_scripts` tool r
 which `scripts/auth.py exchange` swaps for a key stored in your config folder, readable by you only) and
 installs FFmpeg for the plugin if it is missing (`scripts/doctor.py --fix`, a pinned, checksum-verified
 build). You never create, copy or paste a key. The scripts' key appears under the connection in your
-dashboard, with the same privacy mode and caps, and revoking the connection revokes it too. Choose
-privacy mode `all` (or `private_text`) when you connect: the edit, video and music models the skill
+dashboard, with the same privacy mode and caps, and revoking the connection revokes it too. Keep
+privacy mode `all`, preselected when you connect (or choose `private_text`): the edit, video and music models the skill
 uses are mostly anonymized. In apps without a shell, the connector's image, video and music tools do the
 generation. The skill's README lists every requirement.
 

@@ -200,9 +200,9 @@ In TypeScript, read `response.headers.get('x-tokentide-charge-usd')` after
 `supportsVision` or `supportsFunctionCalling`, limits (context length, output limit), retirement dates, and a
 `tokentide` object with your current prices on both lanes.
 
-- Send your key: the list then holds only what its privacy mode allows. `private` (new keys' default) lists
-  Private, TEE and E2EE models; `private_text` adds Anonymized image, video and audio models; `all` lists all,
-  including Anonymized models such as Claude, GPT and Gemini models. Others answer `403 model_not_allowed`.
+- Send your key: the list then holds only what its privacy mode allows. `all` (new keys' default) lists
+  every model, including Anonymized models such as Claude, GPT and Gemini models; `private_text` keeps text models
+  private and adds Anonymized image, video and audio models; `private` lists Private, TEE and E2EE models. Others answer `403 model_not_allowed`.
 - `?type=` takes `text`, `decision`, `embedding`, `image`, `inpaint`, `upscale`, `video`, `music`, `tts`, `asr`.
 
 ```json
@@ -381,7 +381,7 @@ after one complete download it is deleted upstream and the link answers `404` (a
 - Venice's end-to-end encrypted inference, relayed: you encrypt `user` and `system` messages to a public key in
   an attested hardware enclave, and Tokentide sees only ciphertext.
 - Only `POST /v1/chat/completions` (not `/v1/responses`), `e2ee-*` models (e.g. `e2ee-glm-5-3-p`), `stream:
-  true`, Standard lane; the default `private` key mode allows them (`X-Tokentide-Model-Privacy: e2ee`).
+  true`, Standard lane; every key privacy mode, `private` included, allows them (`X-Tokentide-Model-Privacy: e2ee`).
 - Fetch and verify the model's attestation directly from Venice, never via a proxy (Tokentide included), then
   send the three `X-Venice-TEE-*` headers. A stale attestation fails in-stream (`e2ee_attestation_stale`):
   verify a new one and retry. More: `security-and-privacy.md` and https://tokentide.app/docs/e2ee.

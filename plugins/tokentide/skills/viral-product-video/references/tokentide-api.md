@@ -56,7 +56,8 @@ and the media is deleted upstream after one complete download (an interrupted do
 There is no hosted assembly: editing, captions and the mix need the scripts.
 
 **Privacy mode is set per key** and filters what the key can see and call:
-- `private` (default for new keys): Private, TEE and E2EE models only. In Nov 2026 that view had a few
+- `all` (default for new keys since 2026-11-17, preselected when connecting): every model; see below.
+- `private` (the default before 2026-11-17, so older keys often have it): Private, TEE and E2EE models only. In Nov 2026 that view had a few
   private edit models (FireRed, Grok Imagine edit), **no background removal** (`bria-bg-remover` is
   anonymized) and only private video models (Grok Imagine, MiniMax H3 Max, LongCat, Flux 3 Max video,
   Ovi) — not enough for premium, product-accurate keyframes and clips, and no music.
@@ -202,7 +203,7 @@ Direct bodies are capped at 4.5 MB (Venice accepts 25 MB). Options, in order of 
 |---|---|---|
 | 4.5 MB body limit (Venice 25 MB) | big keyframes, two-frame I2V, video inputs | images auto-shrunk to fit; local video inputs over ~3 MB refused with "use a public URL" |
 | No upload path for video (Large Payload Lane has no video purpose) | Topaz upscale, video-to-video, Seedance extend/stitch need hosted files | `video.py upscale --video https://…` |
-| Default privacy mode hides background removal, most premium edit and video models, all music | premium keyframes, cutouts and music impossible with a default key | doctor and recommender warn; use a key in mode `all` (or `private_text`) |
+| Privacy mode `private` (older keys' default, or the user's choice) hides background removal, most premium edit and video models, all music | premium keyframes, cutouts and music impossible with such a key | doctor and recommender warn; use a key in mode `all` (or `private_text`) |
 | Image requests 4/min on new accounts (10 verified, 20 trusted) | 9–15 keyframes ≈ 3–4 min | client-side pacing; ask Tokentide for a higher tier for volume |
 | ≤ 8 unfinished jobs, 16 concurrent requests (new tier) | big batches queue slowly | ≤ 6 in flight; the rest wait as "planned" and are queued by `poll` |
 | Daily cutoff ~23:14 UTC (video) / ~23:39 UTC (music) until ~00:00 UTC | late-night batches stall | checked before queueing; queue after midnight UTC |

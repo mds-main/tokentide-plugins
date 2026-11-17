@@ -26,7 +26,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
-VERSION = "1.0.12"
+VERSION = "1.0.13"
 DEFAULT_BASE = "https://api.tokentide.app/v1"
 USER_AGENT = "tokentide-skill/" + VERSION + " (+https://tokentide.app)"
 KEY_PREFIXES = ("tt_live_", "tt_test_")
@@ -225,7 +225,8 @@ def cmd_check(args):
         + (". Privacy tiers: " + ", ".join(privacy) if privacy else "") + ".",
     ]
     if privacy and "anonymized" not in privacy:
-        lines.append("Anonymized models (for example Claude, GPT and Gemini) need a key with privacy mode `all`.")
+        lines.append("Anonymized models (for example Claude, GPT and Gemini) need a key with privacy mode `all`, the "
+                     "default for new keys; this key has a stricter mode, which the user chose.")
     if market.get("sold_out"):
         lines.append("Today's supply is sold out until " + hhmm(market.get("reopens_at")) + ": use a fallback "
                      "provider or wait for the reset.")

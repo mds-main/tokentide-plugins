@@ -28,7 +28,7 @@ python3 SKILL_DIR/scripts/models.py choose --project projects/<slug> \
   Image prices are the catalog's Venice list price × the model's current Tokentide multiplier (2K tier
   when tiered). Each price shows the Venice list price next to it; `LT` marks Low Tide eligibility, and
   `--lane lowtide` prices everything for that lane.
-- **Privacy mode decides what you see.** A key in Tokentide's default `private` mode hides background
+- **Privacy mode decides what you see.** A key in privacy mode `private` (the default before 2026-11-17) hides background
   removal, most premium edit and video models and every music model; the report warns at the top. Use
   a key in mode `all` or `private_text` (Private options stay available for confidential products).
 - Specs use `"model": "@i2v"`, `"@keyframe"`, `"@i2v_audio"`, `"@scene"`, `"@tts"`, `"@music"`, `"@sfx"`; scripts resolve

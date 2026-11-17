@@ -77,7 +77,7 @@ Or create a key under **API keys**, https://tokentide.app/app/keys:
 
 | Setting             | Default    | What to choose                                                                                                     |
 | ------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------ |
-| Privacy mode        | `private`  | `private`: Private, TEE and E2EE models only. `private_text`: text, embedding and decision models stay Private, TEE or E2EE; image, video and audio models may be Anonymized. `all`: every model, including Anonymized ones (Claude, GPT, Gemini…). Choose the narrowest mode the app needs |
+| Privacy mode        | `all`  | `all` (preselected in onboarding and on the API keys page): every model, including Anonymized ones (Claude, GPT, Gemini…). `private`: Private, TEE and E2EE models only, for sensitive content. `private_text`: text, embedding and decision models stay Private, TEE or E2EE; image, video and audio models may be Anonymized. Choose the narrowest mode the app needs |
 | Default lane        | `standard` | `lowtide` for a key used only by batch jobs that can wait (non-streaming)                                         |
 | Max multiplier      | none       | The highest fraction of the Venice list price this key will pay                                                    |
 | Spend caps          | none       | Daily, weekly and monthly caps for this key; `0` pauses the key without revoking it                                |
@@ -208,7 +208,7 @@ When you help a user set one up:
 - The user pastes the key into the tool or sets `TOKENTIDE_API_KEY` themselves; never ask for it in the chat.
 - Coding agents call tools on every step: pick a model with `supportsFunctionCalling` in `GET /v1/models` (examples:
   `z-ai-glm-5-3`, `kimi-k3-1-pro`, `deepseek-v4-pro`; with privacy mode `all`, `claude-sonnet-5-5`). Claude, GPT and
-  Gemini need a key with privacy mode `all`, or they answer `403 model_not_allowed`.
+  Gemini need privacy mode `all` (the default for new keys); a `private` key gets `403 model_not_allowed`.
 - Set the tool's maximum output (about 16,000 tokens to start), give the key a daily spend cap, and keep the key on
   Standard: Low Tide takes only non-streaming requests and doesn't suit an interactive agent.
 - None of these tools falls back to another provider on its own (as of their docs on 2026-11-17). Keep the user's

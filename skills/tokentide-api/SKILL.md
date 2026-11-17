@@ -4,7 +4,7 @@ description: Set up, build on and optimize the Tokentide API at https://api.toke
 license: Proprietary (Tokentide Plugin License, see LICENSE). Use only with the Tokentide service.
 compatibility: Any agent that can write code or make HTTPS requests to api.tokentide.app. The optional helper script needs Python 3.8+ (standard library only) and network access to api.tokentide.app.
 metadata:
-  version: "1.0.12"
+  version: "1.0.13"
   author: Tokentide
   homepage: https://tokentide.app/docs/best-practices
 ---
@@ -37,8 +37,9 @@ only when the task needs it; the table at the end says which.
 - **Prepaid credit** that doesn't expire at midnight, spend caps per key and per account, price and cost limits per
   request.
 - **Privacy**: Tokentide never stores prompts or outputs. Each model has a privacy level (Private, TEE, E2EE or
-  Anonymized); each key a privacy mode (`private` by default, `private_text` or `all`) that limits which levels it may
-  call. Anonymized models (Claude, GPT, Gemini and others) need `all`.
+  Anonymized); each key a privacy mode (`all` by default for new keys, `private_text` or `private`) that limits which levels it
+  may call. Anonymized models (Claude, GPT, Gemini and others) need `all`; keys created before 2026-11-17 often have
+  `private`.
 - **The catalog changes.** Take model ids from `GET /v1/models` (filtered to what the key may call); the ids in this
   skill are examples.
 
@@ -58,8 +59,9 @@ they set `TOKENTIDE_API_KEY` themselves and you run the check again.
    where offered), then open the verification email. Adding a passkey is recommended.
 2. **Create an API key**: the guided page https://tokentide.app/app/onboarding, or **API keys** at
    https://tokentide.app/app/keys. The key is shown **once**: copy it straight into a password manager or secret
-   store. Keep privacy mode `private` unless the app needs Anonymized models (`all`), or Anonymized image, video and
-   audio models with private text (`private_text`).
+   store. New keys start with privacy mode `all` (every model, Anonymized ones included); the user should choose
+   `private` for an app that handles sensitive content, or `private_text` for Anonymized image, video and audio models
+   with private text.
 3. **Add credit** under **Billing** at https://tokentide.app/app/billing: by card through Stripe from $10 (new
    accounts can add up to $50 by card per 24 hours), or with USDC where the page offers it. Set spend caps and alerts
    there too; auto top-up becomes available once the account is 7 days old and has added $100 by card.
@@ -252,8 +254,8 @@ Lanes, the tide table, Low Tide limits, quotes and workload timing: `references/
 
 ## Privacy, security and the EU AI Act
 
-- Match the key's privacy mode to the data: `private` for personal or confidential text; `all` only for keys that
-  need Anonymized models. `X-Tokentide-Model-Privacy` on every response says which level served it.
+- Match the key's privacy mode to the data: `private` for personal or confidential text, even though new keys start
+  with `all`; keep `all` for keys that need Anonymized models. `X-Tokentide-Model-Privacy` on every response says which level served it.
 - Send only what the task needs; redact personal data before it reaches any model; log metadata, not content.
 - For EU users, the EU AI Act adds transparency duties (tell people they are talking to an AI, mark synthetic media,
   label deepfakes), AI literacy and, for high-risk uses, much more. `references/eu-ai-act.md` has the timeline,

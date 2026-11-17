@@ -12,8 +12,8 @@ https://tokentide.app/claude (Claude Code and the Claude apps) and https://token
 (ChatGPT and Codex).
 
 ## Sign in once
-You sign in to Tokentide once, when the connector asks (pick privacy mode **`all`**, or `private_text`,
-and a daily spending limit). That is the only step for you. The agent does the rest:
+You sign in to Tokentide once, when the connector asks (keep privacy mode **`all`**, preselected, or pick
+`private_text`, and set a daily spending limit). That is the only step for you. The agent does the rest:
 - It links the skill's scripts to your connection: the connector's `link_local_scripts` tool gives it a
   one-time code, and `scripts/auth.py exchange --code …` swaps it for the scripts' own key, stored in
   your config folder (`~/.config/tokentide/api_key`, Windows `%APPDATA%\tokentide\api_key`) readable by
@@ -24,8 +24,8 @@ and a daily spending limit). That is the only step for you. The agent does the r
   a pinned, checksum-verified build (libass, freetype, fontconfig, libx264) for the plugin, without admin
   rights.
 
-The default `private` privacy mode hides background removal, most premium edit and video models and all
-music models; with it, the skill can only use Private models.
+A key in privacy mode `private` hides background removal, most premium edit and video models and all
+music models; with it, the skill can only use Private models. New keys default to `all`.
 
 ## Requirements
 - For the full pipeline: a shell with Python 3.8+ and network access to `api.tokentide.app` (Claude Code
