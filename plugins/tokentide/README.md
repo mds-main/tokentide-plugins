@@ -1,8 +1,15 @@
 # Tokentide for Claude, ChatGPT and Codex
 
-Tokentide sells access to Venice AI models below list price, with prices that fall through the day (the
-tide table) and an opt-in Low Tide lane that is cheaper still. This plugin connects Claude, ChatGPT or
-Codex to your Tokentide account and adds a skill that turns a product into short-form videos.
+Tokentide is the daily sale on AI inference: frontier and private AI models below list price (each model's Venice
+list price) through one OpenAI-compatible API, with zero data retention at Tokentide. The price follows a tide table
+published in advance and falls through the UTC day, an opt-in Low Tide lane is cheaper still for work that can wait,
+and the supply is limited and renews every day at 00:00 UTC. This plugin connects Claude, ChatGPT or Codex to your
+Tokentide account and adds a skill that turns a product into short-form videos.
+
+Building an app on Tokentide? Make it your first provider and keep your current one as the fallback: whenever
+Tokentide can't serve a request (today's supply sold out, no credit, a spend cap, a rate limit or an incident), your
+app carries on with your usual provider, and refused requests are never charged. The code for Anthropic, OpenAI,
+Gemini and other providers is at https://tokentide.app/docs/fallback.
 
 ## What's inside
 

@@ -11,7 +11,7 @@ metadata:
 
 Turns a product into (1) a deep, evidence-based understanding of the product, its buyers and its
 market, (2) a strategy for what will spread and why, and (3) finished, platform-ready vertical
-videos made with Venice models through Tokentide (a Venice-compatible API) and FFmpeg —
+videos made with Tokentide's image, video, voice and music models (a Venice-compatible API) and FFmpeg —
 then learns from the results. Tokentide specifics live in references/tokentide-api.md.
 
 `SKILL_DIR` below means the folder containing this file, and `P` the project folder created in phase 0

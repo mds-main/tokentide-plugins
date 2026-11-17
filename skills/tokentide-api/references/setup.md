@@ -13,6 +13,7 @@ setup check fails, or before taking an integration to production.
 - [4. Store the key where your code can read it](#4-store-the-key-where-your-code-can-read-it)
 - [5. Verify the setup](#5-verify-the-setup)
 - [6. Make the account production-ready](#6-make-the-account-production-ready)
+- [Coding agents and other tools](#coding-agents-and-other-tools)
 - [Troubleshooting](#troubleshooting)
 - [Using this skill with the Tokentide plugin](#using-this-skill-with-the-tokentide-plugin)
 
@@ -189,6 +190,32 @@ The model id is an example: list the models the key may call with `python3 scrip
       you choose (none, 1 hour, 24 hours or 7 days). Suspect a leak? Rotate with no overlap.
 - [ ] A fallback provider for sold-out days (see `reliability.md`).
 
+## Coding agents and other tools
+
+Any tool that accepts an OpenAI-compatible provider can use Tokentide with three values: base URL
+`https://api.tokentide.app/v1`, a Tokentide key (`tt_live_…`) and a model id from `GET /v1/models`. Step-by-step
+guides, checked against each tool's own documentation:
+
+| Tool | Guide | Where Tokentide goes |
+| --- | --- | --- |
+| Cline | https://tokentide.app/docs/cline | Settings → API Provider "OpenAI Compatible": Base URL, API Key, Model ID; Model Configuration for limits |
+| Kilo Code | https://tokentide.app/docs/kilo-code | Settings → Providers → Custom provider ("OpenAI Compatible"), or `provider.<id>` with `@ai-sdk/openai-compatible` in the global `~/.config/kilo/kilo.jsonc` (`{env:TOKENTIDE_API_KEY}` resolves only there) |
+| Aider | https://tokentide.app/docs/aider | `OPENAI_API_BASE` and `OPENAI_API_KEY`, then `aider --model openai/<model id>`; `extra_params.max_tokens` in `.aider.model.settings.yml` |
+| Others | https://tokentide.app/docs/integrations | The tool's OpenAI-compatible (custom, generic) provider, or its OpenAI base URL |
+
+When you help a user set one up:
+
+- The user pastes the key into the tool or sets `TOKENTIDE_API_KEY` themselves; never ask for it in the chat.
+- Coding agents call tools on every step: pick a model with `supportsFunctionCalling` in `GET /v1/models` (examples:
+  `z-ai-glm-5-3`, `kimi-k3-1-pro`, `deepseek-v4-pro`; with privacy mode `all`, `claude-sonnet-5-5`). Claude, GPT and
+  Gemini need a key with privacy mode `all`, or they answer `403 model_not_allowed`.
+- Set the tool's maximum output (about 16,000 tokens to start), give the key a daily spend cap, and keep the key on
+  Standard: Low Tide takes only non-streaming requests and doesn't suit an interactive agent.
+- None of these tools falls back to another provider on its own (as of their docs on 2026-11-17). Keep the user's
+  usual provider configured to switch to on `503 capacity_unavailable` (until 00:00 UTC), `402` or `429`, or put a
+  LiteLLM proxy in front with Tokentide first and an automatic fallback (`reliability.md`,
+  https://tokentide.app/docs/fallback#litellm).
+
 ## Troubleshooting
 
 | Symptom                                           | Cause                                                                | Fix                                                                                          |
@@ -227,3 +254,4 @@ connector and a video skill. They work side by side with this skill:
 - Keys and least privilege: https://tokentide.app/docs/security
 - USDC top-ups and wallets: https://tokentide.app/docs/x402
 - Connector and plugin: https://tokentide.app/docs/mcp
+- Coding agents and other tools: https://tokentide.app/docs/integrations

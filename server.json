@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "app.tokentide/mcp",
+  "title": "Tokentide",
+  "description": "The daily sale on AI inference: live prices, tide table, models, estimates, usage and model calls.",
+  "version": "1.0.0",
+  "websiteUrl": "https://tokentide.app/docs/mcp",
+  "repository": {
+    "url": "https://github.com/mds-main/tokentide-plugins",
+    "source": "github"
+  },
+  "icons": [
+    { "src": "https://tokentide.app/icon.svg", "mimeType": "image/svg+xml", "sizes": ["any"] },
+    { "src": "https://tokentide.app/icons/icon-192.png", "mimeType": "image/png", "sizes": ["192x192"] },
+    { "src": "https://tokentide.app/icons/icon-512.png", "mimeType": "image/png", "sizes": ["512x512"] }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.tokentide.app/mcp"
+    }
+  ]
+}

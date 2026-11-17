@@ -96,6 +96,7 @@ both catalogs before you ship:
 | GLM 5.2 | `zai-org-glm-5-2` | Venice | `zai-org-glm-5-2` |
 | Gemini 3.8 Flash | `gemini-3-8-flash` | Google (Gemini API) | `gemini-3.8-flash` |
 | DeepSeek V4.1 Flash | `deepseek-v4-1-flash` | Vercel AI Gateway | `deepseek/deepseek-v4.1-flash` |
+| gpt-oss-120b | `openai-gpt-oss-120b` | OpenRouter (or another OpenAI-compatible provider) | `openai/gpt-oss-120b` |
 
 ### Python implementation
 
@@ -225,9 +226,49 @@ pass the same `baseURL` and `apiKey` to `new OpenAI({ … })`):
 | Gemini | `OpenAI(base_url="https://generativelanguage.googleapis.com/v1beta/openai/", api_key=os.environ["GEMINI_API_KEY"])` (a Google AI Studio key) | `gemini-3-8-flash` → `gemini-3.8-flash` | Google calls this OpenAI compatibility beta; to use Google's own SDK, replace only the fallback call |
 | Vercel AI Gateway | `OpenAI(base_url="https://ai-gateway.vercel.sh/v1", api_key=os.environ["AI_GATEWAY_API_KEY"])` (`VERCEL_OIDC_TOKEN` can replace the key on a Vercel deployment) | Lab in front: `deepseek/deepseek-v4.1-flash`, `anthropic/claude-opus-5.5`, `openai/gpt-5.5`, `google/gemini-3.8-flash` | One fallback for every pair, open-weight models included. Runs at a provider it picks, billed by Vercel; according to Vercel's documentation it keeps no prompts or responses. For zero-data-retention providers only: Zero Data Retention in its settings, or `providerOptions: { gateway: { zeroDataRetention: true } }` (paid Vercel plans). Its own fallbacks don't cover a Tokentide sold-out day |
 
+Any other OpenAI-compatible provider works the same way: `OpenAI(base_url=..., api_key=...)` and its own model
+ids. As documented by each provider on 2026-11-17 (check its model list before you ship):
+
+| Provider | Base URL | API key | gpt-oss-120b there |
+| --- | --- | --- | --- |
+| OpenRouter | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` | `openai/gpt-oss-120b` |
+| Together AI | `https://api.together.ai/v1` | `TOGETHER_API_KEY` | `openai/gpt-oss-120b` |
+| Groq | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` | `openai/gpt-oss-120b` |
+| Fireworks AI | `https://api.fireworks.ai/inference/v1` | `FIREWORKS_API_KEY` | `accounts/fireworks/models/gpt-oss-120b` |
+| Amazon Bedrock | `https://bedrock-runtime.<region>.amazonaws.com/openai/v1` | A Bedrock API key (`AWS_BEARER_TOKEN_BEDROCK`) | `openai.gpt-oss-120b-1:0` (no `GET /models` there) |
+
+Each provider bills what it serves at its own prices and under its own terms, including what it keeps: check its
+data policy before requests meant for a Private model fall back there. OpenRouter's own fallbacks (`models`, other
+hosts) cover an incident at one host, not a Tokentide sold-out day.
+
 Behind a gateway or router of your own, add Tokentide as an OpenAI-compatible provider (base URL
 `https://api.tokentide.app/v1`), first, with your current provider as its fallback, and check that it falls
-back on `429`, `5xx` and timeouts and waits for `Retry-After` before it tries Tokentide again.
+back on `402`, `429`, `5xx` and timeouts and waits for `Retry-After` before it tries Tokentide again.
+
+**LiteLLM** gives apps and tools that can't fall back on their own (coding agents included) an automatic fallback:
+run its proxy with Tokentide and the fallback as two models and `fallbacks` between them, then point the tool at
+the proxy (`http://0.0.0.0:4000`, the proxy's master key as the API key, the model name from the config):
+
+```yaml
+model_list:
+  - model_name: coder
+    litellm_params:
+      model: openai/claude-opus-5-5 # openai/ + the Tokentide model id
+      api_base: https://api.tokentide.app/v1
+      api_key: os.environ/TOKENTIDE_API_KEY
+  - model_name: coder-fallback
+    litellm_params:
+      model: anthropic/claude-opus-5-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+router_settings:
+  fallbacks: [{"coder": ["coder-fallback"]}]
+  num_retries: 0 # hand a refused request to the fallback at once
+```
+
+Start it with `litellm --config litellm_config.yaml` (installed with `uv tool install 'litellm[proxy]'`;
+`LITELLM_MASTER_KEY` set). LiteLLM falls back on every error, `403 model_not_allowed` and malformed requests
+included: check the key's privacy mode allows the model, and watch the proxy's logs for `4xx`. Setup per coding
+agent (Cline, Kilo Code, Aider): https://tokentide.app/docs/integrations.
 
 ## Retries
 
@@ -390,6 +431,8 @@ Before a large batch, check `GET /v1/market` (`sold_out`, `reopens_at`, `lowtide
 
 - https://tokentide.app/docs/best-practices
 - https://tokentide.app/docs/fallback
+- https://tokentide.app/docs/fallback#openai-compatible
+- https://tokentide.app/docs/fallback#litellm
 - https://tokentide.app/docs/errors
 - https://tokentide.app/docs/rate-limits
 - https://tokentide.app/docs/lanes#streaming-responses

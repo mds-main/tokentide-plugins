@@ -1,9 +1,16 @@
 # Tokentide plugins and agent skills
 
-The official plugin marketplace and agent skills of [Tokentide](https://tokentide.app): Venice AI models below list
-price, with a published intraday tide table, an opt-in Low Tide lane and zero data retention at Tokentide, on every
-model. The same marketplace serves Claude (`.claude-plugin/marketplace.json`) and ChatGPT and Codex
-(`.agents/plugins/marketplace.json`); the agent skill installs into any coding agent.
+The official plugin marketplace and agent skills of [Tokentide](https://tokentide.app), the daily sale on AI inference:
+frontier and private models (Claude, GPT, Gemini, DeepSeek, Qwen, GLM and more) up to 63% below list price, through
+one OpenAI-compatible API, with zero data retention at Tokentide. The price follows a tide table published in advance
+and falls through the UTC day, an opt-in Low Tide lane goes deeper for work that can wait, and the supply is limited
+each day, so the advice for production is simple: **Tokentide first, your current provider as the fallback**. List
+price means each model's Venice list price; how the sale works is at https://tokentide.app/pricing and the fallback
+code at https://tokentide.app/docs/fallback.
+
+The same marketplace serves Claude (`.claude-plugin/marketplace.json`) and ChatGPT and Codex
+(`.agents/plugins/marketplace.json`); the agent skill installs into any coding agent, and the MCP Registry entry for
+the connector is in [`server.json`](server.json).
 
 | Package                                       | What it adds                                                                                                                                                                           | Install                                                           |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
