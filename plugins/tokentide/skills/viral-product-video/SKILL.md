@@ -1,6 +1,6 @@
 ---
 name: viral-product-video
-description: Researches any product or brand in depth (positioning, proof, customer reviews and language, competitors, ads, trends), turns it into a virality strategy (hero moments, angles, hook bank, series, calendar), then plans, generates, edits, quality-checks and packages short-form vertical videos for TikTok, Instagram Reels and X through the Tokentide API, a Venice-compatible API (live model recommendations with tide prices, product-accurate keyframes, image-to-video, original music and sound effects, voice-over, transcription) plus FFmpeg (captions, audio mix, export). Use it whenever the user wants to promote, launch, market, grow an account for, or go viral with a product, app, service or brand on social media, or asks for TikToks, Reels, Shorts-style or X videos, AI video ads, UGC-style content, hooks, scripts or a short-form content plan. Works in any language.
+description: Researches any product or brand in depth (positioning, proof, customer reviews and language, competitors, ads, trends), turns it into a virality strategy (hero moments, angles, hook bank, series, calendar), then plans, generates, edits, quality-checks and packages short-form vertical videos for TikTok, Instagram Reels and X through the Tokentide API, a Venice-compatible API (the user names the models or picks a recommended level, Essential, Pro or Max, with the total price up front; product-accurate keyframes, image-to-video, original music and sound effects, voice-over, transcription) plus FFmpeg (captions, audio mix, export). Use it whenever the user wants to promote, launch, market, grow an account for, or go viral with a product, app, service or brand on social media, or asks for TikToks, Reels, Shorts-style or X videos, AI video ads, UGC-style content, hooks, scripts or a short-form content plan. Works in any language.
 license: Proprietary (Tokentide Plugin License, see LICENSE in the plugin root). Use only with the Tokentide service.
 compatibility: The full pipeline needs a shell with Python 3.8+ and network access to api.tokentide.app (Claude Code, Codex, or a Claude/ChatGPT code environment that allows the domain) plus web search. The scripts link their own key through the Tokentide connector and install FFmpeg themselves, so the user only signs in once. Without a shell, the connector's image, video and music tools cover research, strategy and generation.
 metadata:
@@ -41,9 +41,10 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 - **The real product must look right.** Viewers and brands notice a wrong logo instantly. Build
   keyframes from real product photos (edit/multi-edit), animate image-to-video, and add all text,
   logos and captions in post. Never let a model invent label text.
-- **Always the best current models, chosen by the user.** Models change weekly. Recommend from the
-  live catalog with real quotes, give quality/price options, and let the user pick. Specs use
-  aliases (`@i2v`), never hard-coded ids.
+- **The user chooses the models, or a level, and knows the price first.** Models change weekly. Every new
+  request starts by asking whether the user names the models or wants a recommendation (Essential / Pro / Max,
+  rated by Artificial Analysis, priced by Tokentide). Always give the total in dollars before anything is made:
+  a quote, or an estimate clearly called one. Specs use aliases (`@i2v`), never hard-coded ids.
 - **Honest content travels further.** Label AI, never fake customers or reviews, prove every claim.
   Platforms demote or remove deceptive content, and fines are real (references/compliance.md).
 - **Spend deliberately.** Quote before queueing, respect the budget cap, test hooks cheaply, scale
@@ -57,14 +58,16 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 | Situation | Run |
 |---|---|
 | New product/brand, "make it go viral", "grow our account" | Full campaign: phases 0–11, then 12 after posting |
-| Project research exists, "make another video / a new batch" | 0 (re-run model recommendations) → 5–11 |
-| "Just the research / strategy / content plan" | 0 (skip models) → 1–4 |
-| User shares analytics or results | 12, then 5–11 for the next batch |
+| Project research exists, "make another video / a new batch" | 0 (first question, with "keep the same models" as an option) → 5–11 |
+| "Just the research / strategy / content plan" | 0 (no first question, no models) → 1–4 |
+| User shares analytics or results | 12, then 5–11 for the next batch (first question then) |
 | "Quick test, skip research" | 0 → mini-research (dossier essentials + 15 VOC quotes, ~10 searches) → 5–11, labelled as a test |
 
 ## Master checklist (copy into your task list and tick as you go)
 ```
-[ ] 0  Setup: doctor --fix · link scripts · brief · project · model options → user picks → choose
+[ ] 0  First question: the user's models, or our recommendation? (user's language)
+[ ] 0  Setup: doctor --fix · link scripts · brief · project
+[ ] 0  Models: match the user's models | leaderboards → tiers → user picks a level · choose · cost → tell models + total
 [ ] 1  Product & brand dossier
 [ ] 2  Audience & voice of customer
 [ ] 3  Competitors, ads & trends
@@ -80,6 +83,15 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 ```
 
 ## Phase 0 — Setup
+0. **First question, before anything else** (references/models.md §1): in the user's language, with the
+   multiple-choice question tool when available, ask how to choose the models that will make the video, the
+   images, the voice and the music:
+   - **"I'll choose them"**: the user names the models; you check Tokentide offers them and give the total first.
+   - **"Recommend them for me"**: you compare the newest models with Artificial Analysis' quality ratings and
+     offer three levels, **Essential**, **Pro** and **Max**, each with its price.
+   For a new batch in an existing project, add "keep the same models as last time". Skip the question when the
+   request already names models or a level, or is research/strategy only. User away → recommend; pick Pro if
+   it fits the budget cap, else Essential, and say so in one line. Then carry on with setup.
 1. **Environment — sign in once, then fix everything yourself** (the user approves in the browser at
    most once and runs nothing):
    - `python3 SKILL_DIR/scripts/doctor.py --fix`. It checks Python, FFmpeg filters, fonts, the key and
@@ -128,19 +140,25 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 3. **Project:** `python3 SKILL_DIR/scripts/init_project.py "<Product>" --budget-usd 50 --languages en`
    creates `P = projects/<slug>/` with templates. Put photos in `P/assets/product/`, logo in `P/assets/brand/`,
    brand fonts (.ttf/.otf) in `P/assets/fonts/` (captions and overlays can then use them by family name).
-4. **Models — always from the live catalog** (references/models.md):
-   `python3 SKILL_DIR/scripts/models.py recommend --project P`
-   It refreshes `models.json`, prices video and music models with free quotes, and writes
-   `model_options.md` with Premium / Alt premium / Balanced / Budget / Newest 🆕 / Private options per
-   job (keyframe, scene, i2v, i2v_audio, r2v, tts, music, sfx), each with max duration, resolution,
-   audio, end-frame support, privacy, Tokentide price (with Venice list price), Low Tide eligibility and
-   ≈ cost per finished video. Add `--lane lowtide` to see Low Tide prices.
-   - For a campaign, first spend 2–3 searches on a current quality leaderboard and pass it with
-     `--ranks` (format in references/models.md §3), so "Premium" reflects today's best models.
-   - Present 3–4 options per job (multiple-choice question tool if available, else a compact table):
-     video model (i2v) and keyframe model at minimum. Then
-     `models.py choose --project P keyframe=<id> scene=<id> i2v=<id> i2v_audio=<id> tts=<id> music=<id> sfx=<id>`.
-   - User away → choose Balanced everywhere, say so in one line, mention the Premium alternative.
+4. **Models — always from the live catalog**, as the user answered the first question (references/models.md):
+   - **The user's models** (§2): `python3 SKILL_DIR/scripts/models.py match "<name>" "<name>" --project P`
+     finds each name in the live catalog. Use only models Tokentide offers; for one it doesn't, say so plainly
+     and offer the closest available ones. Fill jobs the user didn't name from the Pro level (and say so), then
+     `models.py choose --project P i2v=<id> keyframe=<id> scene=<id> tts=<id> music=<id> sfx=<id>`.
+   - **A recommendation** (§3–4): read the five Artificial Analysis leaderboards (video, image editing, text to
+     image, voices, music; one page each) into `P/ranks.json`, then
+     `python3 SKILL_DIR/scripts/models.py tiers --project P --ranks P/ranks.json --videos <n>`. From the 30 most
+     recent models per job it picks Essential (best rated among the cheapest), Pro (best rated in the middle
+     price range) and Max (best rated at any price), with a total per level, in `P/model_tiers.md`. Ask the user
+     to pick a level in plain words (§4 has the wording and the level names per language), then
+     `models.py choose --project P --tier <level>`.
+   - **Then always** (§5): `python3 SKILL_DIR/scripts/models.py cost --project P --videos <n>` and tell the
+     user, plainly, which model will make the video, the product images, the backgrounds, the voice and the
+     music, and the total: "Quote: $X" when it prints QUOTE; "About $X. This is an estimate: the final price may
+     vary" when it prints ESTIMATE. Credit Artificial Analysis for the ratings. Get an OK before the first paid
+     step unless the user said to go ahead.
+   - `models.py recommend --project P` lists detailed options per job (Private, Newest 🆕, r2v, t2v) for
+     switching one job later (§8).
 5. Mention once: Tokentide's terms (a draft dated 1 Nov 2026) say you own outputs *subject to the
    upstream terms*, and Venice's public terms (Jun 2026) restrict their licence to personal,
    non-commercial use, so the user should get written commercial terms before publishing. Anonymized
@@ -161,7 +179,7 @@ Read `references/research-methodology.md` now. Fill the four templates in `P`:
   sites and Reddit; ask the user for screenshots/exports when stuck. Use a browser only if available
   and the user allows it.
 - **Approval gate:** one screen with the positioning line, top 3 angles, top 10 hooks, series ideas,
-  and the first 3–6 concepts with estimated cost at the chosen model tier. Get a go-ahead before paid
+  and the first 3–6 concepts with their cost at the chosen models (`models.py cost --videos <n>`: quote or estimate). Get a go-ahead before paid
   generation unless the user asked you to run autonomously. Deliver research and strategy as
   documents the user can keep (the environment's document/artifact features if present).
 
@@ -208,7 +226,9 @@ references/prompting.md).
 
 ## Phase 8 — Voice-over and word timings
 - `audio.py tts --spec P/briefs/vNN.json` → `P/audio/vNN_vo.mp3`; it prints words/second (aim 2.3–3.0).
-  Choose a voice matching brand and language (`audio.py voices --lang <prefix>`).
+  Choose a voice matching brand and language (`audio.py voices`; a voice the model doesn't offer falls back to
+  its default). Voice models on Tokentide's queued audio route (e.g. ElevenLabs TTS v4) run as a short job:
+  the script quotes, queues and waits; never re-run it for the same take (that pays twice).
 - `audio.py transcribe --spec P/briefs/vNN.json` → word timings aligned to the script (exact spelling);
   offline fallback: `audio.py align --spec P/briefs/vNN.json`.
 - **Music (rights-safe):** generate an original track — add `music.generate {"model": "@music",
@@ -246,13 +266,15 @@ the environment supports it.
 After 48–72 h: fill `P/logs/performance.csv` (created by init; `metrics.py template` makes a fresh one) from
 the user's analytics (exports or screenshots), run `metrics.py analyze --csv P/logs/performance.csv` → SCALE / ITERATE-HOOK /
 -BODY / -PAYOFF / -FOLLOW / KILL per post. Update the hook bank, plan the next batch with
-references/growth-loop.md, re-run `models.py recommend` for newer models, and offer a 🆕 model test take.
+references/growth-loop.md, ask the first question again for the next batch (re-run `models.py tiers` for newer
+models), and offer a 🆕 model test take.
 
 ## Project layout
 ```
 projects/<slug>/
-  project.json         budget cap, platforms, languages, chosen models (@aliases)
-  models.json          live catalog cache        model_options.md   options shown to the user
+  project.json         budget cap, platforms, languages, chosen models (@aliases) and level
+  models.json          live catalog cache        ranks.json          Artificial Analysis ratings read
+  model_tiers.md       Essential / Pro / Max      cost_quote.json     the total given to the user
   research/  strategy/ the four filled templates
   briefs/vNN.json      one spec per video (source of truth for every script)
   assets/{product,brand,fonts,scenes,music,sfx}/   real photos, logo, brand fonts (.ttf/.otf), scenes, licensed audio
@@ -276,8 +298,11 @@ Every generated file has a `.json` sidecar with model, prompt and request id (pr
 | 503 epoch_rollover / queue closed | daily reset: queue after 00:00 UTC (quotes still work) |
 | 409 duplicate_request | the first attempt went through but its response was lost; check `GET /account/usage` |
 | 422 content violation | remove brand names/real people from prompts; describe generically |
-| alias not set (`@i2v`) | `models.py recommend` → user picks → `models.py choose` |
-| quote over budget | fewer takes, shorter clips, 720p drafts, Budget model, `--lane lowtide`, later in the UTC day, or ask to raise the cap |
+| alias not set (`@i2v`) | the first question (phase 0) → `models.py match` or `tiers` → `models.py choose` |
+| a model the user named isn't on Tokentide | say so plainly; offer `models.py match`'s closest models or the level's pick |
+| `tiers`: a level is an ESTIMATE, or a job has no rated models | quotes failed or names didn't match: read "Not rated yet" / "No price", add ids to ranks.json, run again; otherwise call the total an estimate |
+| two levels use the same model for a job | expected: it is both the best rated and the cheapest there; say so in one line |
+| quote over budget | a lower level (Essential), fewer takes, shorter clips, 720p drafts, `--lane lowtide`, later in the UTC day, or ask to raise the cap |
 | product drifts in clips | fix keyframe, shorten to 4–5 s, lock camera, add end frame, try Alt premium |
 | captions off-sync | re-run `audio.py transcribe` (or `align`), then captions + assemble |
 
@@ -285,7 +310,7 @@ Every generated file has a `.json` sidecar with model, prompt and request id (pr
 | File | Open when |
 |---|---|
 | references/research-methodology.md | phases 1–4 (always for a campaign) |
-| references/models.md | phase 0 model options; whenever choosing or switching models |
+| references/models.md | phase 0: the first question, the user's models, the levels, the total price; switching models |
 | references/platforms.md | strategy (§4) and packaging (phase 11) |
 | references/hooks-formats.md | hooks, formats, beat sheets, shareability (phases 4–5) |
 | references/prompting.md | writing keyframe and motion prompts (phases 5–7) |

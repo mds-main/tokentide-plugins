@@ -373,6 +373,9 @@ def _sync_spec(data, root):
         if target == "music":
             spec.data.setdefault("music", {})["file"] = rec["out"]
             changed = True
+        elif target == "voiceover":
+            spec.data.setdefault("voiceover", {})["file"] = rec["out"]
+            changed = True
         elif target and target.startswith("sfx:"):
             i = int(target.split(":", 1)[1])
             if i < len(spec.data.get("sfx", [])):

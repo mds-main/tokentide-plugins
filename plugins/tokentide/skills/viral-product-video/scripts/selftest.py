@@ -78,18 +78,19 @@ def _tt(privacy):
             "lowtide": {"multiplier": MULT["lowtide"], "open": True, "eligible": True}}
 
 
-def _vid(mid, created, durs, res, audio=True, end=False, privacy="anonymized", aspects=("9:16", "16:9", "1:1")):
+def _vid(mid, created, durs, res, audio=True, end=False, privacy="anonymized", aspects=("9:16", "16:9", "1:1"), name=None):
     return {"id": mid, "type": "video", "created": _ts(created), "tokentide": _tt(privacy),
-            "model_spec": {"privacy": privacy, "constraints": {"durations": list(durs), "resolutions": list(res),
+            "model_spec": {"name": name or mid, "privacy": privacy,
+                           "constraints": {"durations": list(durs), "resolutions": list(res),
                                                                "aspect_ratios": list(aspects), "promptCharacterLimit": 4096},
                            "capabilities": {"supportsAudioConfig": audio, "supportsEndImage": end}}}
 
 
-def _img(mid, created, pricing, inputs=None, privacy="anonymized"):
+def _img(mid, created, pricing, inputs=None, privacy="anonymized", name=None):
     caps = {"maxInputImages": inputs} if inputs else {}
     # Like Tokentide's catalog: edit / multi-edit models are Venice type "inpaint", generators "image".
     return {"id": mid, "type": "inpaint" if "edit" in mid else "image", "created": _ts(created), "tokentide": _tt(privacy),
-            "model_spec": {"privacy": privacy, "pricing": pricing, "capabilities": caps}}
+            "model_spec": {"name": name or mid, "privacy": privacy, "pricing": pricing, "capabilities": caps}}
 
 
 QUOTE_FIELDS = {
@@ -99,33 +100,65 @@ QUOTE_FIELDS = {
 }
 
 MODELS = [
-    _vid("veo3.1-full-image-to-video", "2025-10-15", ["4s", "6s", "8s"], ["720p", "1080p", "4k"]),
-    _vid("kling-v3-pro-image-to-video", "2026-02-05", ["5s", "10s", "15s"], ["720p", "1080p"], end=True),
-    _vid("kling-v3-standard-image-to-video", "2026-02-05", ["5s", "10s", "15s"], ["720p", "1080p"], end=True),
-    _vid("seedance-2-5-image-to-video-basic", "2026-09-10", [f"{i}s" for i in range(4, 31)], ["480p", "720p", "1080p"], end=True),
-    _vid("seedance-2-0-fast-image-to-video-basic", "2026-03-01", [f"{i}s" for i in range(4, 16)], ["480p", "720p"]),
-    _vid("minimax-h3-max-image-to-video", "2026-10-25", ["6s", "10s"], ["768p", "1080p"], privacy="private"),
-    _vid("grok-imagine-1-5-image-to-video-private", "2026-07-01", ["6s", "10s"], ["480p", "720p"], audio=False, privacy="private"),
-    _vid("kling-o3-pro-reference-to-video", "2026-03-20", ["5s", "10s", "15s"], ["720p", "1080p"]),
+    _vid("veo3.1-full-image-to-video", "2025-10-15", ["4s", "6s", "8s"], ["720p", "1080p", "4k"], name="Veo 3.1 Full Quality"),
+    _vid("kling-v3-pro-image-to-video", "2026-02-05", ["5s", "10s", "15s"], ["720p", "1080p"], end=True, name="Kling V3 Pro"),
+    _vid("kling-v3-standard-image-to-video", "2026-02-05", ["5s", "10s", "15s"], ["720p", "1080p"], end=True,
+         name="Kling V3 Standard"),
+    _vid("seedance-2-5-image-to-video-basic", "2026-09-10", [f"{i}s" for i in range(4, 31)], ["480p", "720p", "1080p"],
+         end=True, name="Seedance 2.5"),
+    _vid("seedance-2-0-fast-image-to-video-basic", "2026-03-01", [f"{i}s" for i in range(4, 16)], ["480p", "720p"],
+         name="Seedance 2.0 Fast"),
+    _vid("minimax-h3-max-image-to-video", "2026-10-25", ["6s", "10s"], ["768p", "1080p"], privacy="private",
+         name="MiniMax H3 Max"),
+    _vid("grok-imagine-1-5-image-to-video-private", "2026-07-01", ["6s", "10s"], ["480p", "720p"], audio=False,
+         privacy="private", name="Grok Imagine 1.5"),
+    _vid("kling-o3-pro-reference-to-video", "2026-03-20", ["5s", "10s", "15s"], ["720p", "1080p"], name="Kling O3 Pro R2V"),
     _img("nano-banana-pro-edit", "2025-11-20", {"resolutions": {"1K": {"usd": 0.18}, "2K": {"usd": 0.23}},
-                                                "upscale": {"2x": {"usd": 0.02}, "4x": {"usd": 0.08}}}, 3),
-    _img("seedream-v5-pro-edit", "2026-05-01", {"generation": {"usd": 0.06}, "upscale": {"2x": {"usd": 0.02}}}, 3),
-    _img("seedream-v5-pro", "2026-05-01", {"resolutions": {"1K": {"usd": 0.06}, "2K": {"usd": 0.11}}}),
-    _img("krea-2-turbo", "2026-09-01", {"resolutions": {"1K": {"usd": 0.04}, "2K": {"usd": 0.06}}}, privacy="private"),
-    {"id": "tts-kokoro", "type": "tts", "tokentide": _tt("private"),
-     "model_spec": {"privacy": "private", "voices": ["af_sky", "am_adam", "ef_dora"]}},
+                                                "upscale": {"2x": {"usd": 0.02}, "4x": {"usd": 0.08}}}, 3,
+         name="Nano Banana Pro"),
+    _img("seedream-v5-pro-edit", "2026-05-01", {"generation": {"usd": 0.06}, "upscale": {"2x": {"usd": 0.02}}}, 3,
+         name="Seedream V5 Pro"),
+    _img("seedream-v5-pro", "2026-05-01", {"resolutions": {"1K": {"usd": 0.06}, "2K": {"usd": 0.11}}}, name="Seedream V5 Pro"),
+    _img("krea-2-turbo", "2026-09-01", {"resolutions": {"1K": {"usd": 0.04}, "2K": {"usd": 0.06}}}, privacy="private",
+         name="Krea 2 Turbo"),
+    {"id": "tts-kokoro", "type": "tts", "created": _ts("2025-03-19"), "tokentide": _tt("private"),
+     "model_spec": {"name": "Kokoro Text to Speech", "privacy": "private", "pricing": {"input": {"usd": 3.5}},
+                    "voices": ["af_sky", "am_adam", "ef_dora"]}},
+    # A voice model on the queued audio route (type music, billed per thousand characters), like ElevenLabs TTS v4.
+    {"id": "elevenlabs-tts-v4", "type": "music", "created": _ts("2026-09-29"), "tokentide": _tt("anonymized"),
+     "model_spec": {"name": "ElevenLabs TTS v4", "privacy": "anonymized",
+                    "pricing": {"per_thousand_characters": {"usd": 0.092}}, "prompt_character_limit": 5000,
+                    "voices": ["Aria", "Roger", "Sarah"], "default_voice": "Aria", "supports_custom_voice_id": False}},
     {"id": "elevenlabs-music", "type": "music", "created": _ts("2026-06-01"), "tokentide": _tt("anonymized"),
-     "model_spec": {"privacy": "anonymized"}},
+     "model_spec": {"name": "ElevenLabs Music", "privacy": "anonymized"}},
     {"id": "elevenlabs-sound-effects", "type": "music", "created": _ts("2026-06-01"), "tokentide": _tt("anonymized"),
-     "model_spec": {"privacy": "anonymized"}},
+     "model_spec": {"name": "ElevenLabs Sound Effects", "privacy": "anonymized"}},
     {"id": "mock-vision", "type": "text", "tokentide": _tt("private"),
      "model_spec": {"privacy": "private", "capabilities": {"supportsVision": True}}},
 ]
 
 
+# Leaderboard scores as the agent records them from Artificial Analysis (names as the leaderboards write them;
+# `id` where the names differ).
+RANKS = {"source": "Artificial Analysis", "date": "2026-11-18", "boards": {
+    "video": {"url": "https://artificialanalysis.ai/video/leaderboard/image-to-video", "entries": [
+        {"name": "Veo 3.1", "id": "veo3.1-full-image-to-video", "elo": 1100},
+        {"name": "Kling 3.0 1080p (Pro)", "elo": 1050}, {"name": "Dreamina Seedance 2.5", "elo": 1000},
+        {"name": "Seedance 2.0 Fast", "elo": 950}, {"name": "Utopai X", "elo": 1151}]},
+    "image_edit": {"entries": [{"name": "Nano Banana Pro (Gemini 3 Pro Image)", "elo": 1150},
+                               {"name": "Seedream 5.0 Pro", "elo": 1100}]},
+    "image": {"entries": [{"name": "Seedream 5.0 Pro", "elo": 1100}]},
+    "tts": {"entries": [{"name": "Eleven v4", "elo": 1340}, {"name": "TTS-1", "elo": 1086},
+                        {"name": "Kokoro 82M v1.0", "id": "tts-kokoro", "elo": 1060}]},
+    "music": {"entries": [{"name": "Eleven Music", "elo": 1021}, {"name": "Eleven Music v2.5", "elo": 1001}]}}}
+
+
 def list_price(b, kind):
     m = b.get("model", "")
     if kind == "audio":
+        chars = b.get("character_count") or (len(b.get("prompt") or "") if "tts" in m else 0)
+        if chars:
+            return round(0.092 * chars / 1000, 6)
         return round(0.004 * float(b.get("duration_seconds") or 30), 4)
     secs = float(str(b.get("duration", "5s")).rstrip("s") or 5)
     rate = 0.62 if "veo" in m else 0.2 if "pro" in m or "max" in m else 0.06 if "fast" in m else 0.11
@@ -329,7 +362,7 @@ class Mock(BaseHTTPRequestHandler):
             if key:
                 STATE["idem"].add(key)
             allowed = {"model", "prompt", "negative_prompt", "duration", "resolution", "aspect_ratio", "audio",
-                       "image_url", "end_image_url", "seed", "duration_seconds", "force_instrumental"}
+                       "image_url", "end_image_url", "seed", "duration_seconds", "force_instrumental", "voice"}
             bad = sorted(set(b) - allowed)
             if bad:
                 return self._err(400, "invalid_request", f"Unknown field {bad[0]}", param=bad[0])
@@ -337,7 +370,7 @@ class Mock(BaseHTTPRequestHandler):
             if len(unfinished) >= 8:
                 return self._err(429, "rate_limited", "Too many unfinished jobs", headers={"Retry-After": "2"})
             qid = uuid.uuid4().hex[:10]
-            STATE["jobs"][qid] = {"n": 0, "kind": kind, "gone": False}
+            STATE["jobs"][qid] = {"n": 0, "kind": kind, "gone": False, "model": b["model"]}
             return self._send(200, {"model": b["model"], "queue_id": qid} if kind == "video" else
                               {"model": b["model"], "queue_id": qid, "status": "QUEUED"},
                               charge=self._charge(list_price(b, kind)))
@@ -351,7 +384,7 @@ class Mock(BaseHTTPRequestHandler):
             if b.get("delete_media_on_completion", True) is not False:
                 job["gone"] = True  # Tokentide deletes after delivery by default
             if job["kind"] == "audio":
-                return self._send(200, MEDIA["music.mp3"], "audio/mpeg")
+                return self._send(200, MEDIA["speech.mp3" if "tts" in job.get("model", "") else "music.mp3"], "audio/mpeg")
             return self._send(200, MEDIA["video.mp4"], "video/mp4")
         if p in ("/video/complete", "/audio/complete"):
             if set(b) - {"queue_id"}:
@@ -556,8 +589,45 @@ def main():
     run("models list (cache)", "models.py", "list", "--type", "all", "--out", root / "models.json")
     r = run("models recommend (tide prices + quotes)", "models.py", "recommend", "--project", root)
     print("\n".join(l for l in r.stdout.splitlines() if l.startswith(("| Premium", "| Balanced", "| Budget", "| Newest", "| Private", "## ", "> "))))
+    # The first question of every request: the user names the models, or we recommend Essential / Pro / Max.
+    import models as M  # noqa: E402  (name matching and level picking, in process)
+    pairs_same = [("Dreamina Seedance 2.5", "Seedance 2.5"), ("Kling 3.0 1080p (Pro)", "Kling V3 Pro"),
+                  ("GPT Image 2.6 Sunburst (max)", "GPT Image 2.6 Sunburst Edit"), ("Seedream 5.0 Pro", "Seedream V5 Pro"),
+                  ("Eleven v4", "ElevenLabs TTS v4"), ("MiniMax H3 (768p)", "MiniMax H3"), ("H3-Image", "MiniMax H3 Image"),
+                  ("LTX-2.5 Pro", "LTX Video 2.5 Pro"), ("Speech-02-HD", "MiniMax Speech-02 HD"),
+                  ("Multilingual v2", "ElevenLabs Multilingual v2")]
+    pairs_diff = [("Eleven Music v2.5", "MiniMax Music 2.5"), ("TTS-1", "xAI TTS v1"), ("Wan 3.0", "Wan 3.0 Pro"),
+                  ("Seedance 2.5", "Seedance 2.5 Flash"), ("Kling 3.0 1080p (Pro)", "Kling V3 Standard"),
+                  ("Eleven v4", "ElevenLabs TTS v4 Turbo")]
+    bad = [p for p in pairs_same if not M.same_model(M.name_key(p[0]), M.name_key(p[1]))] + \
+          [p for p in pairs_diff if M.same_model(M.name_key(p[0]), M.name_key(p[1]))]
+    check("leaderboard names match catalog names (and only those)", not bad, f"wrong: {bad}")
+    pts = [{"id": i, "q": q, "p": p} for i, q, p in (("a", 1, 0.05), ("b", 2, 0.06), ("x", 1.5, 0.3), ("c", 3, 0.2),
+                                                       ("d", 4, 1.0))]
+    front = M.frontier(pts, lambda d: d["p"])
+    lv = M.pick_levels(front, lambda d: d["p"])
+    check("levels sit on the price/quality frontier", [d["id"] for d in front] == ["a", "b", "c", "d"]
+          and [lv[k]["id"] for k in M.LEVELS] == ["b", "c", "d"], str([d["id"] for d in front]))
+    common.save_json(root / "ranks.json", RANKS)
+    run("models tiers (Artificial Analysis scores x Tokentide prices)", "models.py", "tiers", "--project", root,
+        "--ranks", root / "ranks.json", expect=("| Video |", "| Voice |", "(quote)", "Artificial Analysis", "Not rated yet"))
+    tiers = common.load_json(root / "model_tiers.json")
+    got = {lv: tiers["tiers"][lv]["models"] for lv in M.LEVELS}
+    check("Essential / Pro / Max video models", [got[lv].get("i2v") for lv in M.LEVELS] == [
+        "seedance-2-5-image-to-video-basic", "kling-v3-pro-image-to-video", "veo3.1-full-image-to-video"], json.dumps(got))
+    check("voices from the queued audio route are rated too", got["max"].get("tts") == "elevenlabs-tts-v4"
+          and got["essential"].get("tts") == "tts-kokoro" and got["max"].get("music") == "elevenlabs-music", json.dumps(got))
+    check("every level has a total", all(tiers["tiers"][lv]["total_usd"] > 0 and tiers["tiers"][lv]["label"] == "quote"
+                                         for lv in M.LEVELS))
+    run("models choose --tier pro", "models.py", "choose", "--project", root, "--tier", "pro",
+        expect=("@i2v        -> kling-v3-pro-image-to-video",))
+    run("models match: the user's own models", "models.py", "match", "Kling 3 Pro", "Sora 2", "eleven labs v4",
+        "--project", root, expect=('"Kling 3 Pro" — AVAILABLE', '"Sora 2" — NOT AVAILABLE', "elevenlabs-tts-v4",
+                                   "i2v=kling-v3-pro-image-to-video"))
+    run("models cost: the total before anything is made", "models.py", "cost", "--project", root, "--videos", "2",
+        expect=("QUOTE:", "| **Total** |", "Budget:"))
     run("models choose", "models.py", "choose", "--project", root, "keyframe=nano-banana-pro-edit", "scene=seedream-v5-pro",
-        "i2v=kling-v3-pro-image-to-video", "i2v_audio=seedance-2-5-image-to-video-basic", "tts=tts-kokoro",
+        "i2v=kling-v3-pro-image-to-video", "i2v_audio=seedance-2-5-image-to-video-basic", "tts=elevenlabs-tts-v4",
         "music=elevenlabs-music", "sfx=elevenlabs-sound-effects")
     run("bg-remove", "image.py", "bg-remove", "--image", root / "assets/product/front.jpg", "--out",
         root / "assets/product/front_cutout.png")
@@ -576,7 +646,14 @@ def main():
     run("sfx generation", "audio.py", "sfx", "--spec", spec, "--poll-seconds", "60", "--interval", "0.3")
     run("voice cloning refused (not offered)", "audio.py", "clone", "--file", root / "assets/product/front.jpg",
         "--name", "x", "--i-have-consent", ok=(2,))
-    run("tts", "audio.py", "tts", "--spec", spec)
+    run("voices (incl. queued voice models)", "audio.py", "voices", "--cache", root / "models.json",
+        expect=("elevenlabs-tts-v4: 3 voices", "tts-kokoro: 3 voices"), absent=("elevenlabs-music:",))
+    run("tts via /audio/speech", "audio.py", "tts", "--text", "Stop scrolling.", "--model", "tts-kokoro", "--voice",
+        "af_sky", "--out", root / "audio/kokoro_check.mp3")
+    run("tts via a queued voice model (wrong voice -> its default)", "audio.py", "tts", "--spec", spec, "--interval", "0.3",
+        expect=("voice 'af_sky' is not offered", "words/s"))
+    check("the spec records the voice-over", common.load_json(spec)["voiceover"].get("file", "").endswith("v01_vo.mp3")
+          and common.load_json(spec)["voiceover"].get("voice") == "Aria")
     run("transcribe+align", "audio.py", "transcribe", "--spec", spec)
     run("captions", "captions.py", "--spec", spec)
     run("assemble master (generated music + sfx)", "assemble.py", "--spec", spec)

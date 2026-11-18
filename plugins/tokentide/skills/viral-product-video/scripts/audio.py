@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Voice-over, word timings, and generated music/SFX via Tokentide (with offline fallbacks).
 
-  tts         text -> speech file (≤4,096 chars)         POST /audio/speech
-  voices      list TTS models/voices from the catalog    GET  /models?type=tts
+  tts         text -> speech file (≤4,096 chars)         POST /audio/speech; voice models served as queued
+                                                         audio jobs (e.g. ElevenLabs TTS v4) via /audio/quote|queue
+  voices      list voice models and their voices          GET  /models?type=tts and type=music
   transcribe  speech -> word timings (words.json)        POST /audio/transcriptions (≤4.5 MB; auto-compressed)
   align       offline word timings: known script + silence detection (no API, no extra deps)
   music       original background track (rights-safe)    POST /audio/quote|queue|retrieve|complete
@@ -40,6 +41,61 @@ def _text_for(a, spec):
     common.die("Provide --text, --text-file or a spec with voiceover.script")
 
 
+def _voice_entry(root, model):
+    """The catalog entry of a voice model: the project's models.json, else the live catalog (tts, then music:
+    the queued voice models are listed with type music)."""
+    m = common.load_models(root).get(model) if root else None
+    if m:
+        return m
+    for t in ("tts", "music"):
+        try:
+            for x in api.get(f"/models?type={t}", retries=2).json().get("data", []):
+                if x.get("id") == model:
+                    x.setdefault("type", t)
+                    return x
+        except api.APIError:
+            return None
+    return None
+
+
+def _pick_voice(entry, wanted):
+    """The requested voice if the model offers it (or takes custom voice ids), else the model's default voice."""
+    spec_ = (entry or {}).get("model_spec") or {}
+    voices = [str(v) for v in (spec_.get("voices") or [])]
+    default = spec_.get("default_voice") or (voices[0] if voices else None)
+    if not wanted:
+        return default or "af_sky"
+    if not voices or spec_.get("supports_custom_voice_id") or wanted.lower() in (v.lower() for v in voices):
+        return wanted
+    common.log(f"voice '{wanted}' is not offered by {entry.get('id')}; using its default voice '{default}' "
+               f"(`audio.py voices` lists them; set voiceover.voice in the spec)")
+    return default
+
+
+def _tts_queued(a, model, text, voice, out, root, spec, vo):
+    """Voice models on Tokentide's queued audio route: quote -> queue -> poll -> the file (billed per character)."""
+    import video  # shared queued-job engine
+
+    body = {"model": model, "prompt": text}
+    if voice:
+        body["voice"] = voice
+    body.update(vo.get("extra") or {})
+    out = out.with_suffix(".mp3")
+    jobs = (root / "logs" / f"{spec.vid if spec else 'adhoc'}_tts_jobs.json") if root else None
+    path = video.adhoc_submit(body, out, jobs, key=out.stem, kind="audio", target="voiceover" if spec else None,
+                              spec_rel=spec.rel(spec.path) if spec else None)
+    rc = video.poll(path, a.poll_seconds, a.interval)
+    data = common.load_json(path)
+    rec = [r for r in data["jobs"] if r.get("key") == out.stem][-1]
+    if rec.get("status") != "done":
+        common.log("The voice-over is still being generated (or failed; see above). When `video.py poll` collects it, "
+                   "the spec's voiceover.file is set; never re-run tts for it (that queues and pays again).")
+        sys.exit(rc or 1)
+    done = Path(rec["out"]) if Path(rec["out"]).is_absolute() else Path(data.get("root") or path.parent.parent) / rec["out"]
+    api.write_sidecar(done, "/audio/queue", body, None, queue_id=rec.get("queue_id"), quote_usd=rec.get("quote_usd"))
+    return done
+
+
 def cmd_tts(a):
     spec = common.Spec(a.spec) if a.spec else None
     vo = (spec.data.get("voiceover") or {}) if spec else {}
@@ -47,26 +103,32 @@ def cmd_tts(a):
     root = spec.root if spec else common.find_project_root(Path(a.out).resolve().parent if a.out else Path.cwd())
     picks = common.project_meta(root).get("models", {}) if root else {}
     model = common.resolve_model(root, a.model or vo.get("model") or picks.get("tts") or "tts-kokoro")
-    voice = a.voice or vo.get("voice") or "af_sky"
     speed = a.speed if a.speed is not None else vo.get("speed", 1.0)
     out = Path(a.out) if a.out else (spec.root / "audio" / f"{spec.vid}_vo.{a.format}" if spec else None)
     if not out:
         common.die("--out is required without --spec")
     api.use_project(root)
-    if len(text) > 4096:
-        common.die(f"Voice-over script is {len(text)} chars; Tokentide TTS accepts at most 4,096. Split or shorten it.")
-    body = {"model": model, "input": text, "voice": voice, "response_format": a.format, "speed": speed}
-    for k, v in (vo.get("extra") or {}).items():
-        body[k] = v
-    resp, used = api.post_adaptive("/audio/speech", body, droppable=("speed", "response_format"))
-    if resp.is_json():
-        common.die(f"TTS returned JSON instead of audio: {resp.body[:300]!r}")
-    ext = api.sniff(resp.body)[0] or a.format
-    out = out.with_suffix("." + ext)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_bytes(resp.body)
-    api.write_sidecar(out, "/audio/speech", used, resp)
-    api.log_call("tts", "/audio/speech", model=model, resp=resp, chars=len(text))
+    entry = _voice_entry(root, model)
+    voice = _pick_voice(entry, a.voice or vo.get("voice"))
+    queued = bool(entry) and entry.get("type") == "music"
+    limit = int(((entry or {}).get("model_spec") or {}).get("prompt_character_limit") or 4096) if queued else 4096
+    if len(text) > limit:
+        common.die(f"Voice-over script is {len(text)} chars; {model} accepts at most {limit:,}. Split or shorten it.")
+    if queued:
+        out = _tts_queued(a, model, text, voice, out, root, spec, vo)
+    else:
+        body = {"model": model, "input": text, "voice": voice, "response_format": a.format, "speed": speed}
+        for k, v in (vo.get("extra") or {}).items():
+            body[k] = v
+        resp, used = api.post_adaptive("/audio/speech", body, droppable=("speed", "response_format"))
+        if resp.is_json():
+            common.die(f"TTS returned JSON instead of audio: {resp.body[:300]!r}")
+        ext = api.sniff(resp.body)[0] or a.format
+        out = out.with_suffix("." + ext)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(resp.body)
+        api.write_sidecar(out, "/audio/speech", used, resp)
+        api.log_call("tts", "/audio/speech", model=model, resp=resp, chars=len(text))
     dur = common.probe(out)["duration"]
     n = len(re.findall(r"\w+", text))
     pace = n / dur if dur else 0
@@ -79,10 +141,19 @@ def cmd_tts(a):
 
 
 def cmd_voices(a):
-    models = common.load_models(path=a.cache) if a.cache else {
-        m["id"]: m for m in (api.get("/models?type=tts").json().get("data", []))}
+    import models as catalog_tools  # audio_kind: which "music" models are voices
+
+    if a.cache:
+        models = common.load_models(path=a.cache)
+    else:
+        models = {}
+        for t in ("tts", "music"):
+            for m in api.get(f"/models?type={t}").json().get("data", []):
+                models[m["id"]] = {**m, "type": m.get("type") or t}
     for mid, m in sorted(models.items()):
-        if a.cache and m.get("type") not in ("tts", None):
+        if m.get("type") not in ("tts", "music", None):
+            continue
+        if m.get("type") == "music" and catalog_tools.audio_kind(m) != "tts":
             continue
         voices = [v for k, v in common.spec_lookup(m, "voice").items() if isinstance(v, list)]
         vs = voices[0] if voices else []
@@ -341,10 +412,12 @@ def main():
     t.add_argument("--text")
     t.add_argument("--text-file")
     t.add_argument("--model", help="default spec voiceover.model or tts-kokoro")
-    t.add_argument("--voice", help="default spec voiceover.voice or af_sky (voices are model-specific)")
+    t.add_argument("--voice", help="default spec voiceover.voice, else the model's default voice (voices are model-specific)")
     t.add_argument("--speed", type=float)
     t.add_argument("--format", default="mp3", choices=["mp3", "wav", "aac", "flac", "opus"])
     t.add_argument("--out")
+    t.add_argument("--poll-seconds", type=int, default=300, help="queued voice models: how long to wait for the file")
+    t.add_argument("--interval", type=float, default=5.0)
     v = sub.add_parser("voices")
     v.add_argument("--cache", help="models.json (default: live API)")
     v.add_argument("--lang", help="voice-id prefix filter, e.g. 'e' for Spanish in Kokoro (ef_/em_)")

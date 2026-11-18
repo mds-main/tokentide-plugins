@@ -43,9 +43,22 @@ python3 scripts/selftest.py                    # whole pipeline + sign-in flow a
 python3 scripts/doctor.py --fix                # checks; installs FFmpeg for the plugin if needed
 python3 scripts/auth.py exchange --code ttlink_…   # with the code from the connector's link_local_scripts
 python3 scripts/init_project.py "My Product" --budget-usd 50
-python3 scripts/models.py recommend --project projects/my-product   # live options with Tokentide prices
+python3 scripts/models.py match "Kling 3 Pro" "nano banana 2.1" --project projects/my-product  # your own models
+python3 scripts/models.py tiers --project projects/my-product --ranks projects/my-product/ranks.json  # or levels
+python3 scripts/models.py choose --project projects/my-product --tier pro
+python3 scripts/models.py cost --project projects/my-product --videos 3   # the total: a quote or an estimate
 ```
 Then ask your agent, e.g. "Make our new insulated bottle go viral on TikTok, Reels and X — use Tokentide".
+
+## Choosing models
+Every new request starts with one question: do you name the models, or should the agent recommend them? If you
+name them, the agent checks Tokentide offers them (and says so plainly when it doesn't, with the closest ones).
+If you want a recommendation, the agent reads Artificial Analysis' public leaderboards (video, image editing,
+text to image, voices, music) into `ranks.json`, and `models.py tiers` takes the 30 most recent models per job,
+prices them with Tokentide and offers three levels on the price/quality frontier: **Essential** (best rated
+among the cheapest), **Pro** (best rated in the middle price range) and **Max** (best rated at any price). Either
+way `models.py cost` gives the total before anything is made: a quote when every line is a live Tokentide price,
+otherwise an estimate, labelled as one. Details: `references/models.md`.
 
 ## Tokentide-specific behaviour
 - Prices = Venice list × the tide multiplier (cheapest late in the UTC day); `--lane lowtide` for
@@ -54,6 +67,7 @@ Then ask your agent, e.g. "Make our new insulated bottle go viral on TikTok, Ree
 - Image requests are paced to the account limit (4/min on new accounts); ≤ 6 video jobs in flight.
 - Video queue closes ~23:14 UTC until the 00:00 UTC reset (music ~23:39 UTC).
 - Original music and sound effects via Tokentide's queued audio jobs (`audio.py music|sfx`).
+- Voice models on the queued audio route (e.g. ElevenLabs TTS v4) are supported by `audio.py tts`.
 - Not available through Tokentide: voice cloning.
 - Full details and the gap list: `references/tokentide-api.md`.
 
