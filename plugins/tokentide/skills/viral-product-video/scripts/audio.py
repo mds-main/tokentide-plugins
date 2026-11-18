@@ -2,7 +2,7 @@
 """Voice-over, word timings, and generated music/SFX via Tokentide (with offline fallbacks).
 
   tts         text -> speech file (≤4,096 chars)         POST /audio/speech; voice models served as queued
-                                                         audio jobs (e.g. ElevenLabs TTS v4) via /audio/quote|queue
+                                                         audio jobs (e.g. ElevenLabs TTS v4 Turbo) via /audio/quote|queue
   voices      list voice models and their voices          GET  /models?type=tts and type=music
   transcribe  speech -> word timings (words.json)        POST /audio/transcriptions (≤4.5 MB; auto-compressed)
   align       offline word timings: known script + silence detection (no API, no extra deps)

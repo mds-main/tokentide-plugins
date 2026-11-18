@@ -229,7 +229,9 @@ references/prompting.md).
 ## Phase 8 — Voice-over and word timings
 - `audio.py tts --spec P/briefs/vNN.json` → `P/audio/vNN_vo.mp3`; it prints words/second (aim 2.3–3.0).
   Choose a voice matching brand and language (`audio.py voices`; a voice the model doesn't offer falls back to
-  its default). Voice models on Tokentide's queued audio route (e.g. ElevenLabs TTS v4) run as a short job:
+  its default). Never pick ElevenLabs TTS v4 by default: use ElevenLabs TTS v4 Turbo (`elevenlabs-tts-v4-turbo`;
+  the scripts never offer v4), and v4 only if the user explicitly asks for that exact model. Voice models on
+  Tokentide's queued audio route (e.g. ElevenLabs TTS v4 Turbo) run as a short job:
   the script quotes, queues and waits; never re-run it for the same take (that pays twice).
 - `audio.py transcribe --spec P/briefs/vNN.json` → word timings aligned to the script (exact spelling);
   offline fallback: `audio.py align --spec P/briefs/vNN.json`.

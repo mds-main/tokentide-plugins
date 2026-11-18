@@ -40,13 +40,15 @@ the multiple-choice question tool when the app has one. Plain words, no model ja
 ## 2. Path A: the user names the models
 1. Find each name in the live catalog (names as the user wrote them, any spelling):
    ```bash
-   python3 SKILL_DIR/scripts/models.py match "Kling 3 Pro" "nano banana 2.1" "ElevenLabs v4" --project P
+   python3 SKILL_DIR/scripts/models.py match "Kling 3 Pro" "nano banana 2.1" "ElevenLabs v4 Turbo" --project P
    ```
    It answers AVAILABLE (with the model ids and the jobs each can do: `i2v` video, `keyframe` product images,
    `scene` backgrounds, `tts` voice, `music`, `sfx`) or NOT AVAILABLE on Tokentide, with the closest models.
 2. Use only models Tokentide offers. For one that isn't available, say so plainly ("Sora 2 isn't available on
    Tokentide") and offer the closest available models, or the recommended level for that part (path B).
    One name can cover several jobs (Kling makes video and images): use it only for the jobs the user meant.
+   **ElevenLabs TTS v4 is never a default:** when the user says "ElevenLabs v4", use ElevenLabs TTS v4 Turbo
+   (`match` suggests it); choose `elevenlabs-tts-v4` only if they explicitly want that exact, non-Turbo model.
 3. Jobs the user didn't name: fill them from the Pro level of `models.py tiers` (path B, no question needed)
    and say which models you added, so the user can change them.
 4. `python3 SKILL_DIR/scripts/models.py choose --project P i2v=<id> keyframe=<id> scene=<id> tts=<id> music=<id> sfx=<id>`
@@ -161,6 +163,8 @@ line by line and prints **QUOTE** or **ESTIMATE**:
   other model is both cheaper and better rated.
 - Unit prices: per second of video (at the planned resolution, or the nearest one the model offers), per image,
   per 1,000 characters of voice, per track.
+- Some models are never picked by default (ElevenLabs TTS v4: the skill uses ElevenLabs TTS v4 Turbo instead), so
+  they never appear as a level or an option.
 - Clips with real sound use the level's video model when it makes sound, else the best-rated one with sound that
   costs no more. Sound effects use the music model's maker when it has one.
 
@@ -215,6 +219,6 @@ Video: veo3.1-full-image-to-video (from $1.76 per 4 s at 720p/1080p, $2.64 at 4K
 audio, 4–15 s / 4–30 s), wan-2.6–3.0, ltx-2.3/2.5, grok-imagine-*-private (R2V ≈ $0.063/s 480p,
 $0.088/s 720p), runway-gen4-5, gemini-omni-flash-1-1, topaz-video-upscale (≈ $0.013/s 720p,
 $0.025/s 1080p, $0.10/s 4K). Sora 2 is not on Venice (OpenAI removed its Sora 2 API on 24 Sep 2026).
-Audio: tts-kokoro (default), tts-chatterbox-hd / tts-minimax-speech-02-hd, elevenlabs-tts-v4 (queued audio
+Audio: tts-kokoro (default), tts-chatterbox-hd / tts-minimax-speech-02-hd, elevenlabs-tts-v4-turbo (queued audio
 route, per 1,000 characters), nvidia/parakeet-tdt-0.6b-v3 (transcription).
 Any total from this snapshot is an **estimate** (§5).

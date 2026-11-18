@@ -97,11 +97,15 @@ ARENA_CREDIT = ("Quality ratings for video and images: Arena leaderboard (arena.
                 "CC BY 4.0 (" + ARENA_DATASET_URL + "), combined with Tokentide's prices by this skill; Arena does not "
                 "endorse these recommendations. Voice and music levels are the skill's own estimate.")
 ARENA_MAX_AGE_H = 24
+# Models the skill never picks by default (levels, options, suggestions), with the variant it uses instead. Only an
+# explicit request from the user for that exact model selects one (models.py choose warns).
+NOT_DEFAULT = {"elevenlabs-tts-v4": "elevenlabs-tts-v4-turbo"}
 # The skill's own estimate for jobs no leaderboard rates (Nov 2026): a rough quality prior per maker or model
 # family, matched on the model id (first match wins). Recency (newest version first, 🆕 bonus) and tier words
 # (hd/max vs turbo/flash) adjust it. It ranks; it does not measure.
+# A key with a version names one model: its score is final (no tier-word adjustment); a family key is adjusted.
 AUDIO_PRIOR = {
-    "tts": [("elevenlabs-tts-v4", 3.1), ("elevenlabs", 2.9), ("gemini", 2.7), ("inworld", 2.7), ("minimax", 2.6),
+    "tts": [("elevenlabs-tts-v4-turbo", 3.6), ("elevenlabs", 2.9), ("gemini", 2.7), ("inworld", 2.7), ("minimax", 2.6),
             ("gradium", 2.5), ("xai", 2.4), ("chatterbox", 2.3), ("orpheus", 2.1), ("qwen", 2.0), ("kokoro", 1.9)],
     "music": [("lyria", 2.9), ("elevenlabs", 2.8), ("minimax", 2.6), ("seed-audio", 2.4), ("sonilo", 2.4),
               ("stable-audio", 2.3), ("ace-step", 2.2)],
@@ -224,7 +228,7 @@ def image_kind(m) -> str:
 
 def audio_kind(m) -> str:
     """What a model of type "music" (Tokentide's queued audio route) makes: music, sfx, tts (a voice read from
-    text, e.g. ElevenLabs TTS v4) or other (voice changer)."""
+    text, e.g. ElevenLabs TTS v4 Turbo) or other (voice changer)."""
     mid = m["id"].lower()
     if re.search(r"voice[-_ ]?changer|speech[-_ ]?to[-_ ]?speech", mid):
         return "other"
@@ -365,7 +369,8 @@ PREFIX_WORDS = {"gemini"}  # 'Gemini Nano Banana 2.1' (leaderboard) is 'Nano Ban
 
 
 def _name_tokens(text: str) -> list:
-    x = re.sub(r"\b\d+(?:\.\d+)?[mb]\b", " ", text)  # parameter sizes: 82M, 1.7B
+    x = re.sub(r"\beleven[\s_-]*labs\b", "elevenlabs", text)  # 'Eleven Labs' as users write it
+    x = re.sub(r"\b\d+(?:\.\d+)?[mb]\b", " ", x)  # parameter sizes: 82M, 1.7B
     x = re.sub(r"\b\d{3,4}p\b|\b[248]k\b|\b\d{4}-?\d{2}-?\d{2}\b", " ", x)  # resolutions, dates
     out = []
     for t in re.findall(r"[a-z]+|\d+(?:\.\d+)*", x):
@@ -668,6 +673,8 @@ def candidates(models, job, prune=True):
             want = {"i2v": "i2v", "i2v_audio": "i2v", "r2v": "r2v", "t2v": "t2v", "upscale": "upscale"}[job]
             if vm != want:
                 continue
+        if m.get("id") in NOT_DEFAULT:
+            continue  # never a level or an option (NOT_DEFAULT)
         d = describe(m, job)
         if d["offline"] or d["deprecated"]:
             continue
@@ -704,9 +711,10 @@ def quality(d, entries, now, scale=None):
     else:
         d["quality_source"] = "prior"
         audio = AUDIO_PRIOR.get(d["job"])
-        base = next((v for k, v in audio if k in d["id"].lower()), DEFAULT_PRIOR) if audio else \
-            FAMILY_PRIOR.get(d["family"], DEFAULT_PRIOR)
-        base += {"premium": 0.5, "standard": 0.0, "fast": -0.6}[d["tier"]]
+        hit = next(((k, v) for k, v in audio if k in d["id"].lower()), None) if audio else None
+        base = hit[1] if hit else (DEFAULT_PRIOR if audio else FAMILY_PRIOR.get(d["family"], DEFAULT_PRIOR))
+        if not (hit and re.search(r"\d", hit[0])):  # a model-specific prior is final; a family prior gets tier words
+            base += {"premium": 0.5, "standard": 0.0, "fast": -0.6}[d["tier"]]
         base += {0: 0.4, 1: 0.0}.get(d.get("version_rank", 0), -0.3)
         if "highest_quality" in d["traits"] or "best" in d["traits"]:
             base += 0.3
@@ -1350,6 +1358,11 @@ def similarity(q, m) -> float:
     return best
 
 
+def not_default_note(mid) -> str:
+    return f" · never a default: use `{NOT_DEFAULT[mid]}` unless the user asks for this exact model" \
+        if mid in NOT_DEFAULT else ""
+
+
 def cmd_match(a):
     root = Path(a.project) if a.project else None
     if root and not a.cache:
@@ -1370,17 +1383,23 @@ def cmd_match(a):
             js = jobs_of(m)
             entry["models"].append({"id": m["id"], "name": display_name(m), "jobs": js, "privacy": privacy(m),
                                     "added": created(m).strftime("%Y-%m-%d") if created(m) else None})
-            print(f"- `{m['id']}` ({display_name(m)}) · jobs: {', '.join(js)} · {privacy(m)}")
+            print(f"- `{m['id']}` ({display_name(m)}) · jobs: {', '.join(js)} · {privacy(m)}" + not_default_note(m["id"]))
             for j in js:
                 if j in SUGGEST_JOBS:
                     picks.setdefault(j, m["id"])
         if not found:
             for s, m in close:
                 entry["closest"].append({"id": m["id"], "name": display_name(m), "jobs": jobs_of(m), "similarity": round(s, 2)})
-                print(f"- closest: `{m['id']}` ({display_name(m)}) · jobs: {', '.join(jobs_of(m))}")
+                print(f"- closest: `{m['id']}` ({display_name(m)}) · jobs: {', '.join(jobs_of(m))}" + not_default_note(m["id"]))
             if not close:
                 print("- nothing similar in the catalog")
         report["asked"].append(entry)
+    ids = {m["id"] for m in models}
+    for j, mid in list(picks.items()):
+        if mid in NOT_DEFAULT and NOT_DEFAULT[mid] in ids:
+            picks[j] = NOT_DEFAULT[mid]
+            print(f"\nNote: the skill uses `{NOT_DEFAULT[mid]}` instead of `{mid}` by default; choose `{mid}` only if the "
+                  "user explicitly asks for that exact model.")
     if picks:
         print("\nSuggested (confirm each job with the user; a name can cover several jobs):\n"
               "  models.py choose --project <P> " + " ".join(f"{j}={i}" for j, i in picks.items()))
@@ -1478,6 +1497,9 @@ def cmd_choose(a):
         job, mid = (x.strip() for x in item.split("=", 1))
         if known and mid not in known:
             common.log(f"WARNING: {mid} is not in {root}/models.json — check the id (models.py match \"<name>\")")
+        if mid in NOT_DEFAULT:
+            common.log(f"NOTE: {mid} is never the default; the skill uses {NOT_DEFAULT[mid]} instead. Keep {mid} only "
+                       f"if the user explicitly asked for it; otherwise run `choose {job}={NOT_DEFAULT[mid]}`.")
         picks[job] = mid
     explicit = {x.split("=", 1)[0].strip() for x in (a.picks or []) if "=" in x}
     if "i2v" in explicit and "i2v_audio" not in explicit:  # shots with real sound: the same model when it makes sound

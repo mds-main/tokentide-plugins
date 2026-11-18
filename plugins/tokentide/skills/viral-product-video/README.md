@@ -68,7 +68,8 @@ otherwise an estimate, labelled as one. Details: `references/models.md`.
 - Image requests are paced to the account limit (4/min on new accounts); ≤ 6 video jobs in flight.
 - Video queue closes ~23:14 UTC until the 00:00 UTC reset (music ~23:39 UTC).
 - Original music and sound effects via Tokentide's queued audio jobs (`audio.py music|sfx`).
-- Voice models on the queued audio route (e.g. ElevenLabs TTS v4) are supported by `audio.py tts`.
+- Voice models on the queued audio route (e.g. ElevenLabs TTS v4 Turbo) are supported by `audio.py tts`. The skill
+  never picks ElevenLabs TTS v4 by default; it uses v4 Turbo instead.
 - Not available through Tokentide: voice cloning.
 - Full details and the gap list: `references/tokentide-api.md`.
 

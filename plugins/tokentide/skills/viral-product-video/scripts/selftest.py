@@ -129,6 +129,10 @@ MODELS = [
      "model_spec": {"name": "ElevenLabs TTS v4", "privacy": "anonymized",
                     "pricing": {"per_thousand_characters": {"usd": 0.092}}, "prompt_character_limit": 5000,
                     "voices": ["Aria", "Roger", "Sarah"], "default_voice": "Aria", "supports_custom_voice_id": False}},
+    {"id": "elevenlabs-tts-v4-turbo", "type": "music", "created": _ts("2026-09-29"), "tokentide": _tt("anonymized"),
+     "model_spec": {"name": "ElevenLabs TTS v4 Turbo", "privacy": "anonymized",
+                    "pricing": {"per_thousand_characters": {"usd": 0.046}}, "prompt_character_limit": 5000,
+                    "voices": ["Aria", "Roger", "Sarah"], "default_voice": "Aria", "supports_custom_voice_id": False}},
     {"id": "elevenlabs-music", "type": "music", "created": _ts("2026-06-01"), "tokentide": _tt("anonymized"),
      "model_spec": {"name": "ElevenLabs Music", "privacy": "anonymized"}},
     {"id": "elevenlabs-sound-effects", "type": "music", "created": _ts("2026-06-01"), "tokentide": _tt("anonymized"),
@@ -653,8 +657,9 @@ def main():
     got = {lv: tiers["tiers"][lv]["models"] for lv in M.LEVELS}
     check("Essential / Pro / Max video models", [got[lv].get("i2v") for lv in M.LEVELS] == [
         "seedance-2-5-image-to-video-basic", "kling-v3-pro-image-to-video", "veo3.1-full-image-to-video"], json.dumps(got))
-    check("voice and music levels come from the estimate (queued voices included)",
-          got["max"].get("tts") == "elevenlabs-tts-v4" and got["essential"].get("tts") == "tts-kokoro"
+    check("voice and music levels come from the estimate; ElevenLabs v4 is never a default (v4 Turbo instead)",
+          got["max"].get("tts") == "elevenlabs-tts-v4-turbo" and got["essential"].get("tts") == "tts-kokoro"
+          and "elevenlabs-tts-v4" not in json.dumps({lv: got[lv] for lv in M.LEVELS}).replace("elevenlabs-tts-v4-turbo", "")
           and got["max"].get("music") == "elevenlabs-music"
           and tiers["jobs"]["tts"]["basis"] == "estimated" and tiers["jobs"]["i2v"]["basis"] == "leaderboard"
           and got["max"].get("keyframe") == "seedream-v5-pro-edit", json.dumps(got))
@@ -664,13 +669,19 @@ def main():
         expect=("@i2v        -> kling-v3-pro-image-to-video",))
     run("models match: the user's own models", "models.py", "match", "Kling 3 Pro", "Sora 2", "eleven labs v4",
         "--project", root, expect=('"Kling 3 Pro" — AVAILABLE', '"Sora 2" — NOT AVAILABLE', "elevenlabs-tts-v4",
-                                   "i2v=kling-v3-pro-image-to-video"))
+                                   "i2v=kling-v3-pro-image-to-video", "tts=elevenlabs-tts-v4-turbo",
+                                   "instead of `elevenlabs-tts-v4` by default"))
+    r = run("models recommend never offers ElevenLabs v4 (v4 Turbo instead)", "models.py", "recommend", "--project", root,
+            "--jobs", "tts", "--cache", root / "models.json", expect=("elevenlabs-tts-v4-turbo",))
+    check("ElevenLabs v4 is not among the voice options", "`elevenlabs-tts-v4`" not in r.stdout)
+    run("choosing ElevenLabs v4 explicitly warns", "models.py", "choose", "--project", root, "tts=elevenlabs-tts-v4",
+        expect=("is never the default", "elevenlabs-tts-v4-turbo"))
     run("models cost: the total before anything is made", "models.py", "cost", "--project", root, "--videos", "2",
         expect=("QUOTE:", "| **Total** |", "Budget:"))
     run("tiers without the dataset: everything on the estimate, said plainly", "models.py", "tiers", "--project", root,
         "--ratings", "none", expect=("No leaderboard ratings this time", "estimated, without independent ratings"))
     run("models choose", "models.py", "choose", "--project", root, "keyframe=nano-banana-pro-edit", "scene=seedream-v5-pro",
-        "i2v=kling-v3-pro-image-to-video", "i2v_audio=seedance-2-5-image-to-video-basic", "tts=elevenlabs-tts-v4",
+        "i2v=kling-v3-pro-image-to-video", "i2v_audio=seedance-2-5-image-to-video-basic", "tts=elevenlabs-tts-v4-turbo",
         "music=elevenlabs-music", "sfx=elevenlabs-sound-effects")
     run("bg-remove", "image.py", "bg-remove", "--image", root / "assets/product/front.jpg", "--out",
         root / "assets/product/front_cutout.png")
@@ -690,7 +701,7 @@ def main():
     run("voice cloning refused (not offered)", "audio.py", "clone", "--file", root / "assets/product/front.jpg",
         "--name", "x", "--i-have-consent", ok=(2,))
     run("voices (incl. queued voice models)", "audio.py", "voices", "--cache", root / "models.json",
-        expect=("elevenlabs-tts-v4: 3 voices", "tts-kokoro: 3 voices"), absent=("elevenlabs-music:",))
+        expect=("elevenlabs-tts-v4-turbo: 3 voices", "tts-kokoro: 3 voices"), absent=("elevenlabs-music:",))
     run("tts via /audio/speech", "audio.py", "tts", "--text", "Stop scrolling.", "--model", "tts-kokoro", "--voice",
         "af_sky", "--out", root / "audio/kokoro_check.mp3")
     run("tts via a queued voice model (wrong voice -> its default)", "audio.py", "tts", "--spec", spec, "--interval", "0.3",
