@@ -8,7 +8,7 @@ made. Specs then refer to the choice by alias (`@i2v`, `@keyframe`, …).
 ## Contents
 1. The first question
 2. Path A: the user names the models
-3. Path B: recommended levels (Essential / Pro / Max) from Artificial Analysis
+3. Path B: recommended levels (Essential / Pro / Max): Arena ratings and the skill's estimate
 4. Presenting the levels and announcing the models
 5. The total price: quote or estimate
 6. How the levels are picked
@@ -26,8 +26,9 @@ the multiple-choice question tool when the app has one. Plain words, no model ja
 > the images, the voice and the music)?
 > 1. **I'll choose them.** Tell me which models you'd like; I'll check they're available on Tokentide and
 >    give you the total price before anything is made.
-> 2. **Recommend them for me.** I'll compare the newest models on Tokentide using independent quality ratings
->    from Artificial Analysis and offer you three levels: Essential, Pro and Max, each with its price.
+> 2. **Recommend them for me.** I'll compare the newest models on Tokentide (using the Arena leaderboard's
+>    quality ratings, from blind votes by real people, for video and images) and offer you three levels:
+>    Essential, Pro and Max, each with its price.
 
 - For a new batch in a project that already has models, add a third option: **keep the same models as last time**
   (then re-price them with `models.py cost`, §5).
@@ -53,55 +54,41 @@ the multiple-choice question tool when the app has one. Plain words, no model ja
    when it does).
 5. Give the total (§5) and wait for an OK before the first paid step.
 
-## 3. Path B: recommended levels from Artificial Analysis
-Quality ratings come from **Artificial Analysis** (artificialanalysis.ai), whose leaderboards rank models by
-blind human preference votes (Elo). Prices come from Tokentide. Read the five leaderboards with your web tools,
-one page each (find a moved page from artificialanalysis.ai's menu: Image, Speech, Video, then the leaderboards):
-
-| Board key | What it rates | Page (Nov 2026) |
-|---|---|---|
-| `video` | turning an image into video (Overall) | https://artificialanalysis.ai/video/leaderboard/image-to-video |
-| `image_edit` | editing images: product shots | https://artificialanalysis.ai/image/leaderboard/editing |
-| `image` | creating images from text: backgrounds | https://artificialanalysis.ai/image/leaderboard/text-to-image |
-| `tts` | voices (text to speech, providers' voices) | https://artificialanalysis.ai/text-to-speech/leaderboard/provider-voice |
-| `music` | instrumental music | https://artificialanalysis.ai/music/leaderboard/instrumental |
-
-Save what you read to `P/ranks.json`, names exactly as the leaderboard writes them (all rows, or at least the
-top 40 of each board); the script matches them to Tokentide's models ("Dreamina Seedance 2.5" → Seedance 2.5,
-"Eleven v4" → ElevenLabs TTS v4):
-```json
-{"source": "Artificial Analysis", "date": "2026-11-18",
- "boards": {
-   "video": {"url": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
-             "entries": [{"rank": 1, "name": "Dreamina Seedance 2.5", "elo": 1161},
-                         {"rank": 4, "name": "MiniMax H3 (768p)", "elo": 1134}]},
-   "image_edit": {"entries": [{"rank": 1, "name": "MAI-Image-2.7", "elo": 1215}]},
-   "image": {"entries": []}, "tts": {"entries": []}, "music": {"entries": []}}}
-```
-Then:
+## 3. Path B: recommended levels: Arena ratings and the skill's estimate
 ```bash
-python3 SKILL_DIR/scripts/models.py tiers --project P --ranks P/ranks.json --videos <n>
+python3 SKILL_DIR/scripts/models.py tiers --project P --videos <n>
 ```
-- It takes the **30 most recent models** per job from the live catalog, attaches the ratings, prices the rated
-  ones (free quotes for video and music, catalog prices for images and voices) and writes `P/model_tiers.md`
-  (read it) and `.json`: per job the Essential, Pro and Max model, and per level the cost per video and for the
-  batch, marked quote or estimate.
-- **Not rated yet** lists recent models without a rating. If one appears on a leaderboard under another name,
-  add an entry with its Tokentide `id` (`{"name": "Kokoro 82M v1.0", "id": "tts-kokoro", "elo": 1060}`) and
-  run `tiers` again. Never invent a score: unrated models are not offered as levels (offer a brand-new one as a
-  test take instead, §8).
-- Reuse `P/ranks.json` when it is less than 7 days old; read the leaderboards again for an older file. Read only
-  these pages, as a person would; don't crawl the site. Credit Artificial Analysis whenever you show ratings.
-- No web access: run `tiers` without `--ranks`; the levels then rest on the skill's own estimate. Tell the user
-  the levels are "estimated, without independent ratings".
+- **Video and images** are rated by the **Arena leaderboard** (arena.ai): Bradley-Terry scores from blind,
+  pairwise votes by real people. Arena publishes its leaderboards as an open dataset under **CC BY 4.0**
+  (https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset), which allows commercial reuse with credit.
+  The script reads it through Hugging Face's dataset viewer (plain JSON, no website scraping) and keeps it a day
+  in `P/arena.json`. Boards: image to video (video clips), multi-image editing (product images: a real product
+  placed into a scene; image editing overall when that category can't be read), text to image (backgrounds).
+- **Voice and music** have no open leaderboard the skill may use, so their levels come from **the skill's own
+  estimate**: a rough prior per maker or model family, adjusted for recency (newest version first, 🆕) and
+  tier words (HD/Max vs Turbo/Flash). Present those as "our recommendation", never as independent ratings.
+- It takes the **30 most recent models** per job from the live catalog, prices them (free quotes for video and
+  music, catalog prices for images and voices) and writes `P/model_tiers.md` (read it) and `.json`: per job the
+  Essential, Pro and Max model, and per level the cost per video and for the batch, marked quote or estimate.
+- **Not rated by Arena** lists recent video and image models Arena doesn't rate yet (new, or not on its
+  leaderboard): they are not offered as levels. Offer a brand-new one as a test take instead (§8).
+- **Credit Arena** whenever you show its ratings, with the credit line at the top of `model_tiers.md` (or in
+  short: "Quality ratings: Arena leaderboard (arena.ai), CC BY 4.0; combined with Tokentide prices; Arena doesn't
+  endorse these recommendations"). Don't use Arena's logo.
+- Arena's dataset unreachable (no network, or a sandbox that allows only api.tokentide.app: allow
+  `datasets-server.huggingface.co`): the script uses an older `arena.json` if there is one (it says so), else
+  every level rests on the estimate and `model_tiers.md` says "No leaderboard ratings this time"; tell the user
+  the levels are "estimated, without independent ratings". `--ratings none` does the same on purpose;
+  `--refresh-ratings` reads the dataset again; `--ranks FILE` uses a hand-made ratings file instead.
 - Then ask the user to pick a level (§4) and `python3 SKILL_DIR/scripts/models.py choose --project P --tier <level>`.
 
 ## 4. Presenting the levels and announcing the models
-Ask in the user's language, in plain words: no Elo, no frontier, no per-second prices. Use the batch totals
+Ask in the user's language, in plain words: no scores, no frontier, no per-second prices. Use the batch totals
 from `model_tiers.md`:
 
-> Here are three levels for your 3 videos. Quality ratings come from Artificial Analysis; prices are
-> Tokentide's prices right now.
+> Here are three levels for your 3 videos. Video and image models are rated by the Arena leaderboard
+> (arena.ai, blind votes by real people); for voice and music it's our own recommendation. Prices are Tokentide's
+> prices right now.
 > - **Essential**: the best-rated models among the most affordable ones. Ideal for testing ideas and posting
 >   often. Quote: $5.80.
 > - **Pro**: higher-rated models at a higher price, the best value in the middle of the range. For your main
@@ -130,11 +117,14 @@ Once the user picks (and after `choose`), tell them the models in plain words, o
 what the data supports (its rating, sound included, price), then the total from `models.py cost` (§5):
 
 > Pro it is. These are the models that will make your videos:
-> - **Video:** Seedance 2.5 (rated #1 by Artificial Analysis for turning images into video; sound included)
-> - **Product images:** Kling Image 4.0 (rated #6 for editing images: it places your real product in new scenes)
-> - **Backgrounds:** MAI Image 2.7 Flash
-> - **Voice:** ElevenLabs v4 Turbo (rated #2 for voices)
-> - **Music:** Lyria 3 Pro (an original track for each video)
+> - **Video:** Seedance 2.5 (rated #2 on the Arena leaderboard for turning images into video; sound included)
+> - **Product images:** Grok Imagine 2.0 (rated #7 on Arena for editing with several images: it places your real
+>   product in new scenes)
+> - **Backgrounds:** Grok Imagine 2.0
+> - **Voice:** Inworld TTS 1.5 Max (our recommendation at this level)
+> - **Music:** Sonilo V1.1 (an original track for each video)
+>
+> Quality ratings: Arena leaderboard (arena.ai), CC BY 4.0.
 >
 > **Quote: $35.98 for 3 videos** at today's prices. Extra retakes would cost more. Shall I start?
 
@@ -163,7 +153,7 @@ line by line and prints **QUOTE** or **ESTIMATE**:
 - Per job: the 30 most recent models of that kind in the live catalog (image-to-video models for video, image
   editors with ≥ 2 input images for product shots, image generators for backgrounds, voices from both
   `/audio/speech` and the queued audio route, music models).
-- Only rated, priced models count. They form a **price/quality frontier**: the models no other model beats on
+- Only rated (Arena, or the estimate for voice and music) and priced models count. They form a **price/quality frontier**: the models no other model beats on
   both price and quality. Its price range is split in three equal steps (on a log scale):
   **Essential** = the best rated in the cheapest third; **Pro** = the best rated up to the second third;
   **Max** = the best rated at any price. With three or more frontier models the levels are three different models;
@@ -177,12 +167,15 @@ line by line and prints **QUOTE** or **ESTIMATE**:
 ## 7. Apps without a shell
 Same flow with the connector's tools: `list_models` (types `video`, `inpaint`, `image`, `tts`, `music`) for the
 available models and their prices, `get_model` for a model's release date and details, `price_video_job` /
-`price_music_job` for free quotes, and the leaderboards above. Pick the three levels by the same rules (§6) among
-recent, rated models, add up the plan (§10) by hand, and call the total a quote only if every line came from a
-quote or a listed price; otherwise an estimate.
+`price_music_job` for free quotes. For ratings, read Arena's dataset with your web tool as JSON, e.g.
+`https://datasets-server.huggingface.co/first-rows?dataset=lmarena-ai/leaderboard-dataset&config=image_to_video&split=latest`
+(configs `image_to_video`, `image_edit`, `text_to_image`; use the `overall` rows, or `multi_image_edit` for product
+images), and judge voice and music yourself (say it's your recommendation). Pick the three levels by the same rules
+(§6) among recent models, add up the plan (§10) by hand, credit Arena, and call the total a quote only if every
+line came from a quote or a listed price; otherwise an estimate.
 
 ## 8. Detailed options per job and switching later
-`models.py recommend --project P [--ranks P/ranks.json]` lists Premium / Alt premium / Balanced / Budget / Newest
+`models.py recommend --project P` lists Premium / Alt premium / Balanced / Budget / Newest
 🆕 / Private options per job (including `r2v` and `t2v`) with max duration, resolution, sound, end frame, privacy
 and price. Use it to switch one job, to find a Private model for a confidential product, or when a 🆕 model
 appears: offer one test take next to the current pick. Switch with `models.py choose --project P <job>=<id>`;
@@ -197,8 +190,8 @@ never switch silently mid-batch. Re-run `tiers` (or `recommend`) before each new
 - Product compositing needs an edit model that takes ≥ 2 input images (the keyframe job filters for it).
 - Confidential product → Private option, or the client's explicit OK for Anonymized models.
 - Long single takes (10–30 s) → check the max duration (`models.py show <id>`).
-- Voice-over in another language → check the voice model speaks it (`audio.py voices`); the speech leaderboard is
-  mostly English.
+- Voice-over in another language → check the voice model speaks it (`audio.py voices`): the voice levels are
+  an estimate and don't check languages.
 - A key in privacy mode `private` hides background removal, most premium edit and video models and every music
   model (the reports warn at the top): the user sets mode `all` or `private_text` in the dashboard.
 

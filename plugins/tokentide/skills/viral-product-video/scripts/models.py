@@ -5,11 +5,12 @@ New image and video models ship constantly, so never hard-code one. Every new re
 question: does the user name the models, or do we recommend them? Specs refer to the picks by alias
 ("@i2v", "@keyframe", ...), so switching models is one command.
 
-  tiers      recommend: Essential / Pro / Max per job from the 30 most recent models of each job, rated by
-             Artificial Analysis (--ranks ranks.json, written from its leaderboards) and priced by Tokentide
-             (live quotes for video and music, catalog prices for images and voices). Each level is a point on
-             the price/quality frontier: Essential = best rated among the cheapest, Pro = best rated in the
-             middle price band, Max = best rated at any price. Writes model_tiers.md/.json with a cost per level.
+  tiers      recommend: Essential / Pro / Max per job from the 30 most recent models of each job, rated by the
+             Arena leaderboard (arena.ai's open dataset, CC BY 4.0: video and images; fetched and cached in
+             arena.json) or by the skill's own estimate (voices, music), and priced by Tokentide (live quotes for
+             video and music, catalog prices for images and voices). Each level is a point on the price/quality
+             frontier: Essential = best rated among the cheapest, Pro = best rated in the middle price band,
+             Max = best rated at any price. Writes model_tiers.md/.json with a cost per level.
   match      the user names models: finds them in the live catalog ("Kling 4", "nano banana 2.1"), per job,
              or says they are not available on Tokentide and lists the closest ones
   cost       total price for a planned batch with the chosen models (or --tier): a QUOTE when every line is
@@ -29,6 +30,7 @@ import argparse
 import datetime as dt
 import json
 import math
+import os
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -77,13 +79,33 @@ TIER_JOBS = ("i2v", "keyframe", "scene", "tts", "music")
 BOARDS = {"i2v": "video", "i2v_audio": "video", "r2v": "video", "t2v": "video_t2v", "keyframe": "image_edit",
           "scene": "image", "tts": "tts", "music": "music"}
 BOARD_FALLBACK = {"video_t2v": "video"}
-AA_BOARDS = {  # board -> (what it rates, Artificial Analysis leaderboard page as of Nov 2026)
-    "video": ("turning an image into video", "https://artificialanalysis.ai/video/leaderboard/image-to-video"),
-    "image_edit": ("editing images", "https://artificialanalysis.ai/image/leaderboard/editing"),
-    "image": ("creating images from text", "https://artificialanalysis.ai/image/leaderboard/text-to-image"),
-    "tts": ("text to speech", "https://artificialanalysis.ai/text-to-speech/leaderboard/provider-voice"),
-    "music": ("instrumental music", "https://artificialanalysis.ai/music/leaderboard/instrumental"),
-    "video_t2v": ("text to video", "https://artificialanalysis.ai/video/leaderboard/text-to-video"),
+# Quality ratings: the Arena leaderboard (arena.ai), published as an open dataset under CC BY 4.0, read through
+# Hugging Face's dataset viewer (plain JSON; no website scraping). board -> (what it rates, dataset subset,
+# categories in order of preference). Product images use the multi-image editing category (a real product placed
+# into a scene), else image editing overall. Arena rates no voice or music models: those levels use the skill's
+# own estimate (AUDIO_PRIOR).
+ARENA_BOARDS = {
+    "video": ("turning an image into video", "image_to_video", ("overall",)),
+    "image_edit": ("editing with several input images", "image_edit", ("multi_image_edit", "overall")),
+    "image": ("creating images from text", "text_to_image", ("overall",)),
+    "video_t2v": ("turning text into video", "text_to_video", ("overall",)),
+}
+ARENA_DATASET = "lmarena-ai/leaderboard-dataset"
+ARENA_DATASET_URL = "https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset"
+ARENA_ROWS_URL = "https://datasets-server.huggingface.co"  # TOKENTIDE_ARENA_URL overrides it (self-test)
+ARENA_CREDIT = ("Quality ratings for video and images: Arena leaderboard (arena.ai), from its open dataset under "
+                "CC BY 4.0 (" + ARENA_DATASET_URL + "), combined with Tokentide's prices by this skill; Arena does not "
+                "endorse these recommendations. Voice and music levels are the skill's own estimate.")
+ARENA_MAX_AGE_H = 24
+# The skill's own estimate for jobs no leaderboard rates (Nov 2026): a rough quality prior per maker or model
+# family, matched on the model id (first match wins). Recency (newest version first, 🆕 bonus) and tier words
+# (hd/max vs turbo/flash) adjust it. It ranks; it does not measure.
+AUDIO_PRIOR = {
+    "tts": [("elevenlabs-tts-v4", 3.1), ("elevenlabs", 2.9), ("gemini", 2.7), ("inworld", 2.7), ("minimax", 2.6),
+            ("gradium", 2.5), ("xai", 2.4), ("chatterbox", 2.3), ("orpheus", 2.1), ("qwen", 2.0), ("kokoro", 1.9)],
+    "music": [("lyria", 2.9), ("elevenlabs", 2.8), ("minimax", 2.6), ("seed-audio", 2.4), ("sonilo", 2.4),
+              ("stable-audio", 2.3), ("ace-step", 2.2)],
+    "sfx": [("elevenlabs", 2.8), ("sonilo", 2.5), ("mmaudio", 2.3)],
 }
 BG_REMOVE_LIST_USD = 0.03  # /image/background-remove (bria-bg-remover, not in the catalog): flat list price
 # A planned batch, priced by `cost` and `tiers` (override with the flags of the same name).
@@ -333,17 +355,18 @@ def tts_price_1k(m, lane="standard"):
     return (round(lst * mult, 6) if mult else lst), lst
 
 
-# ---------------------------------------------------------------- Artificial Analysis scores
+# ---------------------------------------------------------------- leaderboard ratings (Arena) and name matching
 GENERIC_WORDS = {"video", "image", "images", "edit", "editing", "tts", "text", "to", "speech", "audio", "model",
-                 "i2v", "t2v", "r2v", "reference", "basic", "private", "and", "the", "v"}
+                 "i2v", "t2v", "r2v", "reference", "basic", "private", "and", "the", "v", "full", "quality"}
 VENDOR_WORDS = {"eleven", "minimax", "dreamina", "bytedance", "google", "openai", "xai", "alibaba", "tencent",
                 "kuaishou", "microsoft", "bfl"}
 SYNONYMS = {"elevenlabs": "eleven"}
+PREFIX_WORDS = {"gemini"}  # 'Gemini Nano Banana 2.1' (leaderboard) is 'Nano Banana 2.1' (catalog)
 
 
 def _name_tokens(text: str) -> list:
     x = re.sub(r"\b\d+(?:\.\d+)?[mb]\b", " ", text)  # parameter sizes: 82M, 1.7B
-    x = re.sub(r"\b\d{3,4}p\b|\b[248]k\b|\b\d{4}-\d{2}-\d{2}\b", " ", x)  # resolutions, dates
+    x = re.sub(r"\b\d{3,4}p\b|\b[248]k\b|\b\d{4}-?\d{2}-?\d{2}\b", " ", x)  # resolutions, dates
     out = []
     for t in re.findall(r"[a-z]+|\d+(?:\.\d+)*", x):
         if t[0].isdigit():
@@ -358,26 +381,38 @@ def _name_tokens(text: str) -> list:
 
 
 def name_key(name: str):
-    """'Dreamina Seedance 2.5' / 'Seedance 2.5' -> (('seedance', '2.5'), {'dreamina'}, ()). Text in brackets
-    (a resolution, '(Pro)', '(max)') is kept apart: it may or may not be part of the model's name."""
+    """'Dreamina Seedance 2.5 (720p)' / 'Seedance 2.5' -> (('seedance', '2.5'), {'dreamina'}, (), ()). Text in
+    brackets ('(Pro)', '(Medium)', '(nano-banana-pro, 2K)') is kept apart: it may be a qualifier or another name."""
     s = str(name or "").lower()
     s = re.sub(r"(?<=\d)-(?=\d)", ".", s) if re.fullmatch(r"[a-z0-9.\-_]+", s) else s  # ids: 'seedance-2-5' -> 2.5
-    paren = " ".join(re.findall(r"[\(\[]([^\)\]]*)[\)\]]", s))
+    inner = re.findall(r"[\(\[]([^\)\]]*)[\)\]]", s)
     core = _name_tokens(re.sub(r"[\(\[][^\)\]]*[\)\]]", " ", s))
+    parts = tuple(t for t in (tuple(_name_tokens(p)) for x in inner for p in x.split(",")) if len(t) >= 2)
     return (tuple(t for t in core if t not in VENDOR_WORDS), frozenset(t for t in core if t in VENDOR_WORDS),
-            tuple(_name_tokens(paren)))
+            tuple(_name_tokens(" ".join(inner))), parts)
 
 
 def same_model(lb, cat) -> bool:
-    """A leaderboard name and a catalog name denote the same model: same words apart from vendor names
-    (which one side may omit) and, on the leaderboard side, an optional bracketed qualifier."""
-    if not lb[0] or not cat[0]:
+    """A leaderboard name and a catalog name denote the same model: the same words in any order ('Gemini Omni
+    1.1 Flash' = 'Gemini Omni Flash 1.1'), apart from vendor names (one side may omit them), an optional bracketed
+    qualifier on the leaderboard side ('Kling 3.0 1080p (Pro)'), a codename in its brackets ('Gemini 3 Pro Image
+    (nano-banana-pro, 2K)' = 'Nano Banana Pro'), or a leading 'Gemini' ('Gemini Nano Banana 2.1')."""
+    if not cat[0]:
         return False
     if lb[1] and cat[1] and not (lb[1] & cat[1]):
         return False  # 'Eleven Music v2.5' is not 'MiniMax Music 2.5'
-    if not any(t[0].isalpha() for t in lb[0]) and not (lb[1] & cat[1]):
-        return False  # a bare version ('Eleven v4' -> '4') needs the vendor on both sides: 'TTS-1' is not 'xAI TTS v1'
-    return cat[0] == lb[0] or bool(lb[2]) and cat[0] == lb[0] + lb[2]
+    want = sorted(cat[0])
+
+    def ok(core):
+        if not core or sorted(core) != want:
+            return False
+        # a bare version ('Eleven v4' -> '4') needs the vendor on both sides: 'TTS-1' is not 'xAI TTS v1'
+        return any(t[0].isalpha() for t in core) or bool(lb[1] & cat[1])
+
+    forms = [lb[0], lb[0] + lb[2] if lb[2] else ()] + list(lb[3] if len(lb) > 3 else ())
+    if lb[0] and lb[0][0] in PREFIX_WORDS:
+        forms.append(lb[0][1:])
+    return any(ok(f) for f in forms)
 
 
 def model_keys(m) -> list:
@@ -413,7 +448,10 @@ def load_ranks(path) -> dict:
     Old format ({"entries": [{"match", "score"}]} or {match: score}) becomes one board "*" every job uses."""
     if not path:
         return {"boards": {}}
-    data = common.load_json(path)
+    return load_ranks_data(common.load_json(path))
+
+
+def load_ranks_data(data) -> dict:
     boards = {}
     if isinstance(data, dict) and isinstance(data.get("boards"), dict):
         for b, v in data["boards"].items():
@@ -425,8 +463,127 @@ def load_ranks(path) -> dict:
         boards["*"] = _entries(items)
     meta = data if isinstance(data, dict) else {}
     urls = {b: (v.get("url") if isinstance(v, dict) else None) for b, v in (meta.get("boards") or {}).items()}
-    return {"boards": {k: v for k, v in boards.items() if v}, "source": meta.get("source"), "date": meta.get("date"),
-            "urls": urls}
+    published = {b: (v.get("published") if isinstance(v, dict) else None) for b, v in (meta.get("boards") or {}).items()}
+    return {"boards": {k: v for k, v in boards.items() if v}, "source": meta.get("source"),
+            "date": meta.get("date") or (meta.get("fetched") or "")[:10] or None, "urls": urls, "published": published,
+            "credit": meta.get("credit")}
+
+
+def _arena_get(url, attempts=4):
+    """One JSON answer of the dataset viewer, with retries: it answers 5xx now and then."""
+    import time
+    import urllib.error
+    import urllib.request
+    last = None
+    for i in range(attempts):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "tokentide-viral-product-video",
+                                                       "Accept": "application/json"})
+            with common.urlopen(req, timeout=30) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            last = e
+            if i + 1 < attempts:
+                time.sleep(min(6, 1.5 * 2 ** i))
+    raise RuntimeError(f"Arena's dataset could not be read ({last})")
+
+
+def _complete(rows, category, truncated) -> bool:
+    """Rows come grouped by category: a category is complete once another one follows it (or nothing is left)."""
+    idx = [i for i, r in enumerate(rows) if r.get("category") == category]
+    return bool(idx) and (not truncated or idx[-1] < len(rows) - 1)
+
+
+def fetch_arena() -> dict:
+    """The latest Arena leaderboards the skill uses, in ranks.json's format, with their source and licence.
+    The first 100 rows of each subset come from the viewer's cache (dependable); a category that runs past them
+    is paged with /rows, and when that fails the board falls back to its next category."""
+    import urllib.parse
+    base = os.environ.get("TOKENTIDE_ARENA_URL", ARENA_ROWS_URL).rstrip("/")
+    out = {"source": "Arena (arena.ai) leaderboard dataset", "license": "CC BY 4.0", "dataset": ARENA_DATASET_URL,
+           "fetched": common.now_iso(), "credit": ARENA_CREDIT, "boards": {}}
+    errors = []
+    for board, (what, config, categories) in ARENA_BOARDS.items():
+        q = {"dataset": ARENA_DATASET, "config": config, "split": "latest"}
+        try:
+            first = _arena_get(f"{base}/first-rows?{urllib.parse.urlencode(q)}")
+        except RuntimeError as e:
+            errors.append(str(e))
+            continue
+        rows = [r.get("row") or {} for r in first.get("rows") or []]
+        truncated = bool(first.get("truncated"))
+        for category in categories:
+            mine = [r for r in rows if r.get("category") == category]
+            if not _complete(rows, category, truncated):
+                if not truncated and not mine:
+                    continue
+                try:  # page on from the cached rows
+                    offset, seen, more = len(rows), bool(mine), True
+                    while more:
+                        page = _arena_get(f"{base}/rows?{urllib.parse.urlencode({**q, 'offset': offset, 'length': 100})}",
+                                          attempts=3)
+                        batch = [r.get("row") or {} for r in page.get("rows") or []]
+                        hits = [r for r in batch if r.get("category") == category]
+                        mine += hits
+                        seen = seen or bool(hits)
+                        offset += len(batch)
+                        more = bool(batch) and offset < int(page.get("num_rows_total") or 0) and \
+                            not (seen and batch[-1].get("category") != category)
+                except RuntimeError as e:
+                    common.log(f"Arena {config}/{category}: {e}; using the next category")
+                    continue
+            entries = [{"name": r.get("model_name"), "score": r.get("rating"), "rank": r.get("rank"),
+                        "organization": r.get("organization"), "votes": r.get("vote_count")}
+                       for r in mine if r.get("model_name") and r.get("rating") is not None]
+            if entries:
+                dates = sorted({str(r.get("leaderboard_publish_date"))[:10] for r in mine
+                                if r.get("leaderboard_publish_date")})
+                out["boards"][board] = {"what": what, "subset": config, "category": category,
+                                        "published": dates[-1] if dates else None, "entries": entries}
+                break
+    if not out["boards"]:
+        raise RuntimeError("; ".join(errors[:1]) or "Arena's dataset returned no leaderboard rows")
+    return out
+
+
+def arena_ranks(root, refresh=False) -> dict:
+    """Arena ratings for this project: arena.json when it is under ARENA_MAX_AGE_H hours old, else fetched again.
+    If the dataset can't be read, an older arena.json stands in (its date is shown); without one, {}."""
+    path = (Path(root) / "arena.json") if root else None
+    cached = common.load_json(path, default=None) if path and path.is_file() else None
+    if cached and not refresh:
+        try:
+            age = dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(cached["fetched"].replace("Z", "+00:00"))
+            if age < dt.timedelta(hours=ARENA_MAX_AGE_H):
+                return cached
+        except (KeyError, ValueError, TypeError):
+            pass
+    try:
+        data = fetch_arena()
+    except RuntimeError as e:
+        if cached:
+            common.log(f"{e}; using the Arena ratings saved on {cached.get('fetched', '?')[:10]}")
+            return cached
+        common.log(f"{e}. Levels for video and images use the skill's own estimate this time (allow "
+                   "datasets-server.huggingface.co for Arena's ratings).")
+        return {}
+    if path:
+        common.save_json(path, data)
+    return data
+
+
+def ratings(a, root) -> dict:
+    """The quality ratings to use: --ranks FILE (a hand-made ranks.json) > --ratings none > Arena (default)."""
+    if getattr(a, "ranks", None):
+        return load_ranks(a.ranks)
+    if getattr(a, "ratings", "arena") == "none":
+        return {"boards": {}}
+    data = arena_ranks(root, getattr(a, "refresh_ratings", False))
+    if not data:
+        return {"boards": {}}
+    r = load_ranks_data(data)
+    r["credit"] = data.get("credit", ARENA_CREDIT)
+    return r
 
 
 def board_for(job, ranks):
@@ -517,17 +674,15 @@ def candidates(models, job, prune=True):
         if job == "i2v_audio" and not (d.get("audio") or d.get("audio_guess")):
             continue
         out.append(d)
-    if not prune:
-        return out
-    # keep the newest two versions per (family, mode): older generations are superseded
+    # version_rank 0 = the family's newest version; prune keeps the newest two (older generations are superseded)
     by_fam = {}
     for d in out:
         by_fam.setdefault(d["family"], set()).add(d["_ver"])
     keep = []
     for d in out:
         vers = sorted(v for v in by_fam[d["family"]] if v)
-        if not d["_ver"] or not vers or d["_ver"] in vers[-2:]:
-            d["version_rank"] = (len(vers) - 1 - vers.index(d["_ver"])) if d["_ver"] in vers else 0
+        d["version_rank"] = (len(vers) - 1 - vers.index(d["_ver"])) if d["_ver"] in vers else 0
+        if not prune or not d["_ver"] or not vers or d["_ver"] in vers[-2:]:
             keep.append(d)
     return keep
 
@@ -544,11 +699,13 @@ def quality(d, entries, now, scale=None):
     e = lb_entry(d["_m"], entries) if entries else None
     if e:
         d["quality_source"] = f"leaderboard:{e.get('name') or e.get('match') or e.get('id')}"
-        d["aa"], d["aa_rank"] = e["score"], e.get("rank")
+        d["lb_score"], d["lb_rank"] = e["score"], e.get("rank")
         base = (scale or normalized(entries)).get(id(e), 3.0)
     else:
         d["quality_source"] = "prior"
-        base = FAMILY_PRIOR.get(d["family"], DEFAULT_PRIOR)
+        audio = AUDIO_PRIOR.get(d["job"])
+        base = next((v for k, v in audio if k in d["id"].lower()), DEFAULT_PRIOR) if audio else \
+            FAMILY_PRIOR.get(d["family"], DEFAULT_PRIOR)
         base += {"premium": 0.5, "standard": 0.0, "fast": -0.6}[d["tier"]]
         base += {0: 0.4, 1: 0.0}.get(d.get("version_rank", 0), -0.3)
         if "highest_quality" in d["traits"] or "best" in d["traits"]:
@@ -693,18 +850,21 @@ def cmd_recommend(a):
     if a.project:
         api.use_project(a.project)
     models = catalog(a)
-    ranks = load_ranks(a.ranks)
+    ranks = ratings(a, Path(a.project) if a.project else None)
     now = dt.datetime.now(dt.timezone.utc)
     jobs = ([j.strip() for j in a.jobs.split(",")] if a.jobs else
             ["keyframe", "scene", "i2v", "i2v_audio", "r2v", "tts", "music", "sfx"])
     report = {"generated": common.now_iso(), "standard_clip": {"duration_s": a.duration, "resolution": a.resolution},
               "ranks_file": a.ranks, "jobs": {}}
     lines = [f"# Model options — live from Tokentide {now:%Y-%m-%d} ({LANE} lane)",
-             f"Quality = {'leaderboard ranks + ' if ranks['boards'] else ''}family prior, tier, recency (newest versions first). "
+             f"Quality = {'Arena leaderboard ratings (video, images) + ' if ranks['boards'] else ''}the skill's estimate "
+             f"(maker/family prior, tier, recency). "
              f"Prices are what Tokentide charges now (Venice list × today's tide multiplier); video/music are live quotes "
              f"for one {a.duration}s clip / 30 s track. Per-video ≈ 3 shots × 2 takes (images: 3 shots × 3 variants). "
              f"LT = eligible for the cheaper Low Tide lane. Prices fall through the UTC day (cheapest just before 00:00 UTC).", ""]
     lines += privacy_warning(models)
+    if ranks.get("credit"):
+        lines += [ranks["credit"], ""]
     for job in jobs:
         if job not in JOBS:
             common.log(f"unknown job '{job}' (valid: {', '.join(JOBS)})")
@@ -1046,7 +1206,7 @@ def level_cell(d, job) -> str:
         price = f"{money(d.get('price'))}/{(d.get('quoted') or {}).get('duration', 'track')}"
     else:
         price = f"{money(u)}/image"
-    rank = f" · AA #{d['aa_rank']}" if d.get("aa_rank") else ""
+    rank = f" · Arena #{d['lb_rank']}" if d.get("lb_rank") else (" · estimate" if d.get("quality_source") == "prior" else "")
     return f"{d['name']} (`{d['id']}`){rank} · {price}"
 
 
@@ -1059,16 +1219,15 @@ def cmd_tiers(a):
         api.use_project(root)
     models_list = catalog(a)
     models = {m["id"]: m for m in models_list}
-    ranks = load_ranks(a.ranks)
+    ranks = ratings(a, root)
     now = dt.datetime.now(dt.timezone.utc)
     plan = plan_from(a)
     pricer = Pricer(models, LANE, fallback_prices(root))
     res = {job: tier_job(models_list, job, ranks, now, a, pricer) for job in TIER_JOBS}
     bg = bg_remove_model(models)
     report = {"generated": common.now_iso(), "lane": LANE, "plan": plan, "recent": a.recent,
-              "source": {"name": ranks.get("source") or "Artificial Analysis", "date": ranks.get("date"),
-                         "urls": {b: (ranks.get("urls") or {}).get(b) or AA_BOARDS.get(b, ("", ""))[1]
-                                  for b in ranks["boards"]}},
+              "source": {"name": ranks.get("source"), "date": ranks.get("date"), "credit": ranks.get("credit"),
+                         "published": ranks.get("published") or {}},
               "jobs": {}, "tiers": {}}
     for job, r in res.items():
         report["jobs"][job] = {"board": r["board"], "basis": r["basis"], "recent": r["recent"],
@@ -1091,11 +1250,12 @@ def cmd_tiers(a):
     src = report["source"]
     L = [f"# Model levels — live from Tokentide {now:%Y-%m-%d} ({LANE} lane)", ""]
     if ranks["boards"]:
-        L.append(f"Quality ratings: {src['name']} leaderboards ({src['date'] or 'date not recorded'}), "
-                 "artificialanalysis.ai — credit them whenever you show these ratings.")
+        L.append(f"{ranks.get('credit') or src['name']} Read on {src['date'] or '?'}"
+                 + (" (leaderboards published " + ", ".join(sorted({v for v in src['published'].values() if v})) + ")"
+                    if src["published"] else "") + ". Show this credit whenever you show the ratings.")
     else:
-        L.append("> **No leaderboard scores** (`--ranks` missing or empty): quality is the skill's own estimate. Read the "
-                 "Artificial Analysis leaderboards first (references/models.md §3) and run `tiers` again.")
+        L.append("> **No leaderboard ratings this time** (Arena's dataset couldn't be read, or `--ratings none`): every "
+                 "level uses the skill's own estimate. Say so to the user (\"estimated, without independent ratings\").")
     L += [f"Candidates: the {a.recent} most recent models per job in the live catalog. Prices: what Tokentide charges "
           "right now (live quotes for video and music, catalog price × today's multiplier for images and voices).",
           f"Plan priced: {plan['videos']} videos × {plan['shots']} shots × {plan['takes']} takes of {plan['clip_seconds']} s "
@@ -1127,16 +1287,16 @@ def cmd_tiers(a):
     for job in TIER_JOBS:
         r = res[job]
         L.append(f"### {labels[job]} — {JOBS[job][1]}")
-        if r["board"]:
-            what, url = AA_BOARDS.get(r["board"], ("", ""))
-            L.append(f"Leaderboard: {what or r['board']} ({(ranks.get('urls') or {}).get(r['board']) or url}). "
-                     f"{len(r['rated'])} of the {r['recent']} most recent models are rated; frontier: "
+        if r["board"] and r["basis"] == "leaderboard":
+            what = ARENA_BOARDS.get(r["board"], (r["board"],))[0]
+            L.append(f"Rated by Arena for {what}: {len(r['rated'])} of the {r['recent']} most recent models; frontier: "
                      + (", ".join(f"`{d['id']}`" for d in r["frontier"]) or "none"))
         else:
-            L.append(f"No leaderboard for this job: levels use the skill's estimate ({r['recent']} recent models).")
+            L.append(f"The skill's own estimate (no leaderboard for this job here): {r['recent']} recent models; "
+                     "frontier: " + (", ".join(f"`{d['id']}`" for d in r["frontier"]) or "none"))
         if r["unrated"]:
-            L.append("Not rated yet (new or not on the leaderboard): " + ", ".join(f"`{d['id']}`" for d in r["unrated"][:12])
-                     + " — add their leaderboard name or `id` to ranks.json if they are listed.")
+            L.append("Not rated by Arena (new, or not on its leaderboard), so not offered as a level: "
+                     + ", ".join(f"`{d['id']}`" for d in r["unrated"][:12]))
         if r["unpriced"]:
             L.append("No price: " + ", ".join(f"`{d['id']}` ({d.get('quote_error', 'no price')[:60]})" for d in r["unpriced"][:6]))
         L.append("")
@@ -1413,7 +1573,10 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     ti = sub.add_parser("tiers", help="Essential / Pro / Max levels (recommendation)")
     ti.add_argument("--project", help="project folder: caches models.json and writes model_tiers.md/.json there")
-    ti.add_argument("--ranks", help="Artificial Analysis scores (ranks.json; format in references/models.md §3)")
+    ti.add_argument("--ratings", choices=["arena", "none"], default="arena",
+                    help="quality ratings: Arena's open leaderboard dataset (default; cached 24 h in arena.json) or none")
+    ti.add_argument("--refresh-ratings", action="store_true", help="read Arena's dataset again even if arena.json is fresh")
+    ti.add_argument("--ranks", help="a hand-made ranks.json instead of Arena (format in references/models.md §3)")
     ti.add_argument("--recent", type=int, default=30, help="most recent models considered per job (default 30)")
     ti.add_argument("--max-quotes", type=int, default=15, help="max models quoted per job (Tokentide: 60 quotes/min)")
     ti.add_argument("--no-quote", action="store_true")
@@ -1445,7 +1608,9 @@ def main():
     r = sub.add_parser("recommend", help="detailed options per job")
     r.add_argument("--project", help="project folder: caches models.json and writes model_options.md/.json there")
     r.add_argument("--jobs", help="comma list (default keyframe,scene,i2v,i2v_audio,r2v,tts,music,sfx); also t2v, upscale")
-    r.add_argument("--ranks", help="leaderboard scores (ranks.json; see references/models.md)")
+    r.add_argument("--ratings", choices=["arena", "none"], default="arena", help="quality ratings source (default arena)")
+    r.add_argument("--refresh-ratings", action="store_true")
+    r.add_argument("--ranks", help="a hand-made ranks.json instead of Arena (see references/models.md)")
     r.add_argument("--duration", type=int, default=5, help="standard clip length for quotes (s)")
     r.add_argument("--resolution", default="1080p")
     r.add_argument("--max-quotes", type=int, default=10, help="max models quoted per job (Tokentide: 60 quotes/min)")

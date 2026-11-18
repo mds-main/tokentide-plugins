@@ -23,7 +23,8 @@ Gemini and other providers is at https://tokentide.app/docs/fallback.
   a virality strategy, then plans, generates, edits, checks and packages vertical videos for TikTok,
   Instagram Reels and X with Tokentide's image, video, voice and music models and FFmpeg. It first asks
   whether you name the models or want a recommendation: three levels (Essential, Pro, Max) built from the
-  newest models on Tokentide, Artificial Analysis' quality ratings and Tokentide's prices. Either way you get
+  newest models on Tokentide, the Arena leaderboard's quality ratings for video and images (the skill's own
+  estimate for voice and music) and Tokentide's prices. Either way you get
   the total price before anything is made.
 
 One package serves every host: `.claude-plugin/plugin.json` and `.mcp.json` describe it to Claude;

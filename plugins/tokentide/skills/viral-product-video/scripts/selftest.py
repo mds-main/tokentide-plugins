@@ -138,19 +138,26 @@ MODELS = [
 ]
 
 
-# Leaderboard scores as the agent records them from Artificial Analysis (names as the leaderboards write them;
-# `id` where the names differ).
-RANKS = {"source": "Artificial Analysis", "date": "2026-11-18", "boards": {
-    "video": {"url": "https://artificialanalysis.ai/video/leaderboard/image-to-video", "entries": [
-        {"name": "Veo 3.1", "id": "veo3.1-full-image-to-video", "elo": 1100},
-        {"name": "Kling 3.0 1080p (Pro)", "elo": 1050}, {"name": "Dreamina Seedance 2.5", "elo": 1000},
-        {"name": "Seedance 2.0 Fast", "elo": 950}, {"name": "Utopai X", "elo": 1151}]},
-    "image_edit": {"entries": [{"name": "Nano Banana Pro (Gemini 3 Pro Image)", "elo": 1150},
-                               {"name": "Seedream 5.0 Pro", "elo": 1100}]},
-    "image": {"entries": [{"name": "Seedream 5.0 Pro", "elo": 1100}]},
-    "tts": {"entries": [{"name": "Eleven v4", "elo": 1340}, {"name": "TTS-1", "elo": 1086},
-                        {"name": "Kokoro 82M v1.0", "id": "tts-kokoro", "elo": 1060}]},
-    "music": {"entries": [{"name": "Eleven Music", "elo": 1021}, {"name": "Eleven Music v2.5", "elo": 1001}]}}}
+# Arena's leaderboard dataset as Hugging Face's dataset viewer serves it (lmarena-ai/leaderboard-dataset, CC BY 4.0):
+# rows grouped by category, the first ones cached (/first-rows), the rest paged (/rows). Names as Arena writes them.
+def _arena(category, items, date="2026-11-17"):
+    return [{"model_name": n, "organization": "", "license": "Proprietary", "rating": r, "rating_lower": r - 9,
+             "rating_upper": r + 9, "variance": 20.0, "vote_count": 5000, "rank": i + 1, "category": category,
+             "leaderboard_publish_date": date} for i, (n, r) in enumerate(items)]
+
+
+ARENA = {
+    "image_to_video": _arena("overall", [("Veo 3.1 (Audio)", 1400), ("Veo 3.1 Fast (Audio)", 1390),
+                                         ("Kling 3.0 Pro", 1350), ("Dreamina Seedance 2.5 (720p)", 1300),
+                                         ("Seedance 2.0 Fast (720p)", 1250), ("Utopai X", 1450)], "2026-11-09"),
+    "text_to_video": _arena("overall", [("Veo 3.1 (Audio)", 1360)], "2026-11-09"),
+    # Product images rank on multi-image editing, which comes after two other categories and past the cached rows.
+    "image_edit": _arena("overall", [("Seedream 5.0 Pro", 1392), ("Gemini 3 Pro Image (nano-banana-pro, 2K)", 1391)])
+    + _arena("agentic", [("Seedream 5.0 Pro", 1300)])
+    + _arena("multi_image_edit", [("Gemini 3 Pro Image (nano-banana-pro, 2K)", 1364), ("Seedream 5.0 Pro", 1412)]),
+    "text_to_image": _arena("overall", [("Seedream 5.0 Pro", 1249), ("Krea 2 Turbo", 1115)]),
+}
+ARENA_FIRST_ROWS = 4  # the viewer caches the first 100 rows; 4 here, so the multi-image category needs paging
 
 
 def list_price(b, kind):
@@ -269,7 +276,27 @@ class Mock(BaseHTTPRequestHandler):
         m = float(MULT["lowtide"] if self.headers.get("X-Tokentide-Lane") == "lowtide" else MULT["standard"])
         return (round(list_usd * m, 6), list_usd)
 
+    def _arena(self):
+        """Hugging Face's dataset viewer for Arena's dataset (no key; it answers 503 now and then)."""
+        from urllib.parse import parse_qs, urlparse
+        q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+        rows = ARENA.get(q.get("config"))
+        if q.get("dataset") != "lmarena-ai/leaderboard-dataset" or rows is None or q.get("split") != "latest":
+            return self._send(404, {"error": "Not found"})
+        wrap = lambda rs, start: [{"row_idx": start + i, "row": r, "truncated_cells": []} for i, r in enumerate(rs)]
+        if self.path.startswith("/first-rows"):
+            return self._send(200, {"dataset": q["dataset"], "config": q["config"], "split": "latest", "features": [],
+                                    "rows": wrap(rows[:ARENA_FIRST_ROWS], 0), "truncated": len(rows) > ARENA_FIRST_ROWS})
+        STATE["arena_pages"] = STATE.get("arena_pages", 0) + 1
+        if STATE["arena_pages"] == 1:
+            return self._send(503, {"error": "Service Temporarily Unavailable"})
+        off, n = int(q.get("offset", 0)), min(100, int(q.get("length", 100)))
+        return self._send(200, {"features": [], "rows": wrap(rows[off:off + n], off), "num_rows_total": len(rows),
+                                "num_rows_per_page": 100, "partial": False})
+
     def do_GET(self):
+        if self.path.startswith(("/first-rows", "/rows")):
+            return self._arena()
         p = self._path()
         if p.startswith("/status"):
             return self._send(200, {"object": "status", "status": "operational",
@@ -494,6 +521,7 @@ def main():
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     config = work / "_config"  # a throwaway key-file folder: the real ~/.config/tokentide is never touched
     env = {**os.environ, "TOKENTIDE_BASE_URL": f"http://127.0.0.1:{srv.server_port}/v1",
+           "TOKENTIDE_ARENA_URL": f"http://127.0.0.1:{srv.server_port}",
            "TOKENTIDE_CONFIG_DIR": str(config), "TOKENTIDE_IMAGE_RPM": "30"}
     for k in ("TOKENTIDE_API_KEY", "TOKENTIDE_API_KEY_FILE", "TOKENTIDE_SITE_URL"):
         env.pop(k, None)
@@ -591,14 +619,19 @@ def main():
     print("\n".join(l for l in r.stdout.splitlines() if l.startswith(("| Premium", "| Balanced", "| Budget", "| Newest", "| Private", "## ", "> "))))
     # The first question of every request: the user names the models, or we recommend Essential / Pro / Max.
     import models as M  # noqa: E402  (name matching and level picking, in process)
-    pairs_same = [("Dreamina Seedance 2.5", "Seedance 2.5"), ("Kling 3.0 1080p (Pro)", "Kling V3 Pro"),
-                  ("GPT Image 2.6 Sunburst (max)", "GPT Image 2.6 Sunburst Edit"), ("Seedream 5.0 Pro", "Seedream V5 Pro"),
-                  ("Eleven v4", "ElevenLabs TTS v4"), ("MiniMax H3 (768p)", "MiniMax H3"), ("H3-Image", "MiniMax H3 Image"),
-                  ("LTX-2.5 Pro", "LTX Video 2.5 Pro"), ("Speech-02-HD", "MiniMax Speech-02 HD"),
-                  ("Multilingual v2", "ElevenLabs Multilingual v2")]
-    pairs_diff = [("Eleven Music v2.5", "MiniMax Music 2.5"), ("TTS-1", "xAI TTS v1"), ("Wan 3.0", "Wan 3.0 Pro"),
-                  ("Seedance 2.5", "Seedance 2.5 Flash"), ("Kling 3.0 1080p (Pro)", "Kling V3 Standard"),
-                  ("Eleven v4", "ElevenLabs TTS v4 Turbo")]
+    pairs_same = [("Dreamina Seedance 2.5 (720p)", "Seedance 2.5"), ("Kling 3.0 Pro", "Kling V3 Pro"),
+                  ("Gemini Omni 1.1 Flash", "Gemini Omni Flash 1.1"), ("Veo 3.1 (Audio)", "Veo 3.1 Full Quality"),
+                  ("Veo 3.1 Fast (Audio, 1080p)", "Veo 3.1 Fast"), ("FLUX 3 Video (20260811)", "Flux 3"),
+                  ("Grok Imagine Video 1.5 (720p)", "Grok Imagine 1.5"), ("Gemini Nano Banana 2.1", "Nano Banana 2.1"),
+                  ("Gemini 3 Pro Image (nano-banana-pro, 2K)", "Nano Banana Pro"),
+                  ("Gemini 3.1 Flash-Lite Image (nano-banana-2-lite)", "Nano Banana 2 Lite"),
+                  ("GPT-Image-2.6 Sunburst (Medium)", "GPT Image 2.6 Sunburst Edit"), ("Seedream 5.0 Pro", "Seedream V5 Pro"),
+                  ("MiniMax H3-Image", "MiniMax H3 Image"), ("Wan 2.7 Image Pro", "Wan 2.7 Pro"),
+                  ("Kling 3.0 1080p (Pro)", "Kling V3 Pro"), ("Eleven v4", "ElevenLabs TTS v4")]
+    pairs_diff = [("Veo 3.1 Fast (Audio)", "Veo 3.1 Full Quality"), ("Gemini Omni 1.2 Flash", "Gemini Omni Flash 1.1"),
+                  ("Qwen-Image-2.1", "Qwen Image 2.1 Pro"), ("MiniMax H3", "MiniMax H3 Max"), ("Wan 3.0", "Wan 3.0 Pro"),
+                  ("Dreamina Seedance 2.5 (720p)", "Seedance 2.5 Flash"), ("Kling 3.0 Pro", "Kling V3 Standard"),
+                  ("Eleven Music v2.5", "MiniMax Music 2.5"), ("TTS-1", "xAI TTS v1"), ("Eleven v4", "ElevenLabs TTS v4 Turbo")]
     bad = [p for p in pairs_same if not M.same_model(M.name_key(p[0]), M.name_key(p[1]))] + \
           [p for p in pairs_diff if M.same_model(M.name_key(p[0]), M.name_key(p[1]))]
     check("leaderboard names match catalog names (and only those)", not bad, f"wrong: {bad}")
@@ -608,15 +641,23 @@ def main():
     lv = M.pick_levels(front, lambda d: d["p"])
     check("levels sit on the price/quality frontier", [d["id"] for d in front] == ["a", "b", "c", "d"]
           and [lv[k]["id"] for k in M.LEVELS] == ["b", "c", "d"], str([d["id"] for d in front]))
-    common.save_json(root / "ranks.json", RANKS)
-    run("models tiers (Artificial Analysis scores x Tokentide prices)", "models.py", "tiers", "--project", root,
-        "--ranks", root / "ranks.json", expect=("| Video |", "| Voice |", "(quote)", "Artificial Analysis", "Not rated yet"))
+    (root / "arena.json").unlink(missing_ok=True)  # recommend cached it; read the dataset again
+    run("models tiers (Arena ratings x Tokentide prices; estimate for voice and music)", "models.py", "tiers",
+        "--project", root, expect=("| Video |", "| Voice |", "(quote)", "Arena leaderboard (arena.ai)", "CC BY 4.0",
+                                   "Arena does not endorse", "· estimate", "Not rated by Arena"))
+    arena = common.load_json(root / "arena.json")
+    check("Arena's dataset is cached with its licence; product images rank on multi-image editing",
+          arena.get("license") == "CC BY 4.0" and arena["boards"]["image_edit"]["category"] == "multi_image_edit"
+          and arena["boards"]["video"]["published"] == "2026-11-09", json.dumps(arena)[:300])
     tiers = common.load_json(root / "model_tiers.json")
     got = {lv: tiers["tiers"][lv]["models"] for lv in M.LEVELS}
     check("Essential / Pro / Max video models", [got[lv].get("i2v") for lv in M.LEVELS] == [
         "seedance-2-5-image-to-video-basic", "kling-v3-pro-image-to-video", "veo3.1-full-image-to-video"], json.dumps(got))
-    check("voices from the queued audio route are rated too", got["max"].get("tts") == "elevenlabs-tts-v4"
-          and got["essential"].get("tts") == "tts-kokoro" and got["max"].get("music") == "elevenlabs-music", json.dumps(got))
+    check("voice and music levels come from the estimate (queued voices included)",
+          got["max"].get("tts") == "elevenlabs-tts-v4" and got["essential"].get("tts") == "tts-kokoro"
+          and got["max"].get("music") == "elevenlabs-music"
+          and tiers["jobs"]["tts"]["basis"] == "estimated" and tiers["jobs"]["i2v"]["basis"] == "leaderboard"
+          and got["max"].get("keyframe") == "seedream-v5-pro-edit", json.dumps(got))
     check("every level has a total", all(tiers["tiers"][lv]["total_usd"] > 0 and tiers["tiers"][lv]["label"] == "quote"
                                          for lv in M.LEVELS))
     run("models choose --tier pro", "models.py", "choose", "--project", root, "--tier", "pro",
@@ -626,6 +667,8 @@ def main():
                                    "i2v=kling-v3-pro-image-to-video"))
     run("models cost: the total before anything is made", "models.py", "cost", "--project", root, "--videos", "2",
         expect=("QUOTE:", "| **Total** |", "Budget:"))
+    run("tiers without the dataset: everything on the estimate, said plainly", "models.py", "tiers", "--project", root,
+        "--ratings", "none", expect=("No leaderboard ratings this time", "estimated, without independent ratings"))
     run("models choose", "models.py", "choose", "--project", root, "keyframe=nano-banana-pro-edit", "scene=seedream-v5-pro",
         "i2v=kling-v3-pro-image-to-video", "i2v_audio=seedance-2-5-image-to-video-basic", "tts=elevenlabs-tts-v4",
         "music=elevenlabs-music", "sfx=elevenlabs-sound-effects")

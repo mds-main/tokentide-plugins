@@ -2,7 +2,7 @@
 name: viral-product-video
 description: Researches any product or brand in depth (positioning, proof, customer reviews and language, competitors, ads, trends), turns it into a virality strategy (hero moments, angles, hook bank, series, calendar), then plans, generates, edits, quality-checks and packages short-form vertical videos for TikTok, Instagram Reels and X through the Tokentide API, a Venice-compatible API (the user names the models or picks a recommended level, Essential, Pro or Max, with the total price up front; product-accurate keyframes, image-to-video, original music and sound effects, voice-over, transcription) plus FFmpeg (captions, audio mix, export). Use it whenever the user wants to promote, launch, market, grow an account for, or go viral with a product, app, service or brand on social media, or asks for TikToks, Reels, Shorts-style or X videos, AI video ads, UGC-style content, hooks, scripts or a short-form content plan. Works in any language.
 license: Proprietary (Tokentide Plugin License, see LICENSE in the plugin root). Use only with the Tokentide service.
-compatibility: The full pipeline needs a shell with Python 3.8+ and network access to api.tokentide.app (Claude Code, Codex, or a Claude/ChatGPT code environment that allows the domain) plus web search. The scripts link their own key through the Tokentide connector and install FFmpeg themselves, so the user only signs in once. Without a shell, the connector's image, video and music tools cover research, strategy and generation.
+compatibility: The full pipeline needs a shell with Python 3.8+ and network access to api.tokentide.app, plus datasets-server.huggingface.co for model ratings (Claude Code, Codex, or a Claude/ChatGPT code environment that allows the domain) plus web search. The scripts link their own key through the Tokentide connector and install FFmpeg themselves, so the user only signs in once. Without a shell, the connector's image, video and music tools cover research, strategy and generation.
 metadata:
   internal: true
 ---
@@ -42,8 +42,9 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
   keyframes from real product photos (edit/multi-edit), animate image-to-video, and add all text,
   logos and captions in post. Never let a model invent label text.
 - **The user chooses the models, or a level, and knows the price first.** Models change weekly. Every new
-  request starts by asking whether the user names the models or wants a recommendation (Essential / Pro / Max,
-  rated by Artificial Analysis, priced by Tokentide). Always give the total in dollars before anything is made:
+  request starts by asking whether the user names the models or wants a recommendation (Essential / Pro / Max:
+  video and images rated by the Arena leaderboard, voice and music by the skill's estimate, all priced by
+  Tokentide). Always give the total in dollars before anything is made:
   a quote, or an estimate clearly called one. Specs use aliases (`@i2v`), never hard-coded ids.
 - **Honest content travels further.** Label AI, never fake customers or reviews, prove every claim.
   Platforms demote or remove deceptive content, and fines are real (references/compliance.md).
@@ -67,7 +68,7 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 ```
 [ ] 0  First question: the user's models, or our recommendation? (user's language)
 [ ] 0  Setup: doctor --fix · link scripts · brief · project
-[ ] 0  Models: match the user's models | leaderboards → tiers → user picks a level · choose · cost → tell models + total
+[ ] 0  Models: match the user's models | tiers (Arena ratings) → user picks a level · choose · cost → tell models + total
 [ ] 1  Product & brand dossier
 [ ] 2  Audience & voice of customer
 [ ] 3  Competitors, ads & trends
@@ -87,8 +88,9 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
    multiple-choice question tool when available, ask how to choose the models that will make the video, the
    images, the voice and the music:
    - **"I'll choose them"**: the user names the models; you check Tokentide offers them and give the total first.
-   - **"Recommend them for me"**: you compare the newest models with Artificial Analysis' quality ratings and
-     offer three levels, **Essential**, **Pro** and **Max**, each with its price.
+   - **"Recommend them for me"**: you compare the newest models (quality ratings from the Arena leaderboard for
+     video and images, the skill's own estimate for voice and music) and offer three levels, **Essential**,
+     **Pro** and **Max**, each with its price.
    For a new batch in an existing project, add "keep the same models as last time". Skip the question when the
    request already names models or a level, or is research/strategy only. User away → recommend; pick Pro if
    it fits the budget cap, else Essential, and say so in one line. Then carry on with setup.
@@ -145,17 +147,17 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
      finds each name in the live catalog. Use only models Tokentide offers; for one it doesn't, say so plainly
      and offer the closest available ones. Fill jobs the user didn't name from the Pro level (and say so), then
      `models.py choose --project P i2v=<id> keyframe=<id> scene=<id> tts=<id> music=<id> sfx=<id>`.
-   - **A recommendation** (§3–4): read the five Artificial Analysis leaderboards (video, image editing, text to
-     image, voices, music; one page each) into `P/ranks.json`, then
-     `python3 SKILL_DIR/scripts/models.py tiers --project P --ranks P/ranks.json --videos <n>`. From the 30 most
-     recent models per job it picks Essential (best rated among the cheapest), Pro (best rated in the middle
-     price range) and Max (best rated at any price), with a total per level, in `P/model_tiers.md`. Ask the user
+   - **A recommendation** (§3–4): `python3 SKILL_DIR/scripts/models.py tiers --project P --videos <n>`. It reads
+     the Arena leaderboard's open dataset (video and images; cached a day in `P/arena.json`), uses the skill's
+     estimate for voice and music, and from the 30 most recent models per job picks Essential (best rated among
+     the cheapest), Pro (best rated in the middle price range) and Max (best rated at any price), with a total
+     per level, in `P/model_tiers.md`. Ask the user
      to pick a level in plain words (§4 has the wording and the level names per language), then
      `models.py choose --project P --tier <level>`.
    - **Then always** (§5): `python3 SKILL_DIR/scripts/models.py cost --project P --videos <n>` and tell the
      user, plainly, which model will make the video, the product images, the backgrounds, the voice and the
      music, and the total: "Quote: $X" when it prints QUOTE; "About $X. This is an estimate: the final price may
-     vary" when it prints ESTIMATE. Credit Artificial Analysis for the ratings. Get an OK before the first paid
+     vary" when it prints ESTIMATE. Credit Arena for the ratings (the credit line in `model_tiers.md`). Get an OK before the first paid
      step unless the user said to go ahead.
    - `models.py recommend --project P` lists detailed options per job (Private, Newest 🆕, r2v, t2v) for
      switching one job later (§8).
@@ -273,7 +275,7 @@ models), and offer a 🆕 model test take.
 ```
 projects/<slug>/
   project.json         budget cap, platforms, languages, chosen models (@aliases) and level
-  models.json          live catalog cache        ranks.json          Artificial Analysis ratings read
+  models.json          live catalog cache        arena.json          Arena ratings (CC BY 4.0), a day
   model_tiers.md       Essential / Pro / Max      cost_quote.json     the total given to the user
   research/  strategy/ the four filled templates
   briefs/vNN.json      one spec per video (source of truth for every script)
@@ -300,7 +302,8 @@ Every generated file has a `.json` sidecar with model, prompt and request id (pr
 | 422 content violation | remove brand names/real people from prompts; describe generically |
 | alias not set (`@i2v`) | the first question (phase 0) → `models.py match` or `tiers` → `models.py choose` |
 | a model the user named isn't on Tokentide | say so plainly; offer `models.py match`'s closest models or the level's pick |
-| `tiers`: a level is an ESTIMATE, or a job has no rated models | quotes failed or names didn't match: read "Not rated yet" / "No price", add ids to ranks.json, run again; otherwise call the total an estimate |
+| `tiers`: a level's total is an ESTIMATE | a quote failed (see "No price"): run again later, or give the total as an estimate |
+| `tiers`: "No leaderboard ratings this time" | Arena's dataset couldn't be read (network; in a sandbox allow `datasets-server.huggingface.co`): the levels rest on the skill's estimate; say so, or run again later |
 | two levels use the same model for a job | expected: it is both the best rated and the cheapest there; say so in one line |
 | quote over budget | a lower level (Essential), fewer takes, shorter clips, 720p drafts, `--lane lowtide`, later in the UTC day, or ask to raise the cap |
 | product drifts in clips | fix keyframe, shorten to 4–5 s, lock camera, add end frame, try Alt premium |

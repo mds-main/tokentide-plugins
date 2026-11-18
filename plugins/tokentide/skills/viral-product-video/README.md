@@ -44,7 +44,7 @@ python3 scripts/doctor.py --fix                # checks; installs FFmpeg for the
 python3 scripts/auth.py exchange --code ttlink_…   # with the code from the connector's link_local_scripts
 python3 scripts/init_project.py "My Product" --budget-usd 50
 python3 scripts/models.py match "Kling 3 Pro" "nano banana 2.1" --project projects/my-product  # your own models
-python3 scripts/models.py tiers --project projects/my-product --ranks projects/my-product/ranks.json  # or levels
+python3 scripts/models.py tiers --project projects/my-product --videos 3   # or levels
 python3 scripts/models.py choose --project projects/my-product --tier pro
 python3 scripts/models.py cost --project projects/my-product --videos 3   # the total: a quote or an estimate
 ```
@@ -53,9 +53,10 @@ Then ask your agent, e.g. "Make our new insulated bottle go viral on TikTok, Ree
 ## Choosing models
 Every new request starts with one question: do you name the models, or should the agent recommend them? If you
 name them, the agent checks Tokentide offers them (and says so plainly when it doesn't, with the closest ones).
-If you want a recommendation, the agent reads Artificial Analysis' public leaderboards (video, image editing,
-text to image, voices, music) into `ranks.json`, and `models.py tiers` takes the 30 most recent models per job,
-prices them with Tokentide and offers three levels on the price/quality frontier: **Essential** (best rated
+If you want a recommendation, `models.py tiers` takes the 30 most recent models per job, rates video and image
+models with the Arena leaderboard (arena.ai's open dataset under CC BY 4.0, read through Hugging Face's dataset
+viewer and cached for a day in `arena.json`) and voice and music models with the skill's own estimate (Arena
+doesn't rate them), prices them with Tokentide and offers three levels on the price/quality frontier: **Essential** (best rated
 among the cheapest), **Pro** (best rated in the middle price range) and **Max** (best rated at any price). Either
 way `models.py cost` gives the total before anything is made: a quote when every line is a live Tokentide price,
 otherwise an estimate, labelled as one. Details: `references/models.md`.
