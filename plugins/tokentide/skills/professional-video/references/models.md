@@ -18,24 +18,37 @@ made. Specs then refer to the choice by alias (`@i2v`, `@keyframe`, …).
 10. Cost model
 11. Fallback snapshot (Nov 2026) — only if the API is unreachable
 
-## 1. The first question
-Ask it **first, before anything else** in a new request that will make media, in the user's language, with
-the multiple-choice question tool when the app has one. Plain words, no model jargon:
+## 1. Default proposal & the first question
+Unless the user explicitly states different models in their request, **ALWAYS propose by default**:
+- **Video:** **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`, native sound included;
+  `seedance-2-5-flash-reference-to-video-basic` for R2V)
+- **Voice-over:** **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`)
+- **Images & Music:** live Pro-level picks from `models.py tiers` (Arena-rated for images; skill estimate
+  for music)
 
-> Before I start: how would you like to choose the AI models that will make your videos (the video itself,
-> the images, the voice and the music)?
-> 1. **I'll choose them.** Tell me which models you'd like; I'll check they're available on Tokentide and
->    give you the total price before anything is made.
-> 2. **Recommend them for me.** I'll compare the newest models on Tokentide (using the Arena leaderboard's
->    quality ratings, from blind votes by real people, for video and images) and offer you three levels:
->    Essential, Pro and Max, each with its price.
+Ask in the user's language, with the multiple-choice question tool when the app has one (plain words, no
+model jargon):
 
-- For a new batch in a project that already has models, add a third option: **keep the same models as last time**
-  (then re-price them with `models.py cost`, §5).
-- Skip the question when the user already named models or a level in the request (follow it), or when the
-  request is research or strategy only (ask when production starts).
-- User away (said to proceed without them): take path B, choose Pro if its total fits the budget cap, else
-  Essential, and say so in one line.
+> Before we generate anything: by default I recommend **Seedance 2.5 Flash** for video and **ElevenLabs
+> TTS v4 Turbo** for voice-over (paired with the best-value live image and music models on Tokentide), and
+> I'll show you the full itemized estimated quote for the whole video (video, images, voice-over, music and
+> SFX) before spending anything. How would you like to choose the models?
+> 1. **Use the recommended defaults (Recommended).** Seedance 2.5 Flash for video + ElevenLabs v4 Turbo for
+>    voice-over + live Pro image & music models.
+> 2. **Compare Essential / Pro / Max levels.** Show three price/quality tiers from Tokentide's live catalog
+>    (rated by the Arena leaderboard for video & images).
+> 3. **I'll choose my own models.** Tell me which models you'd like; I'll check Tokentide availability and
+>    give you the full itemized quote first.
+
+- For a new batch in a project that already has models, add: **keep the same models as last time**
+  (then re-price the whole video with `models.py cost`, §5).
+- Skip the question when the user already explicitly named models or a level in the request (follow their
+  exact choice, filling any unnamed jobs from the default stack), or when the request is research/strategy
+  only (ask and quote before production starts).
+- User away (said to proceed without them): use `--tier default` (Seedance 2.5 Flash + ElevenLabs v4 Turbo)
+  if its total fits the budget cap, else Essential, and say so in one line.
+- **Hard gate:** NEVER run any paid image, video, voice-over, or music generation until you have shown the
+  user the full itemized estimated quote for the whole video (§5) and received confirmation!
 
 ## 2. Path A: the user names the models
 1. Find each name in the live catalog (names as the user wrote them, any spelling):
@@ -49,12 +62,14 @@ the multiple-choice question tool when the app has one. Plain words, no model ja
    One name can cover several jobs (Kling makes video and images): use it only for the jobs the user meant.
    **ElevenLabs TTS v4 is never a default:** when the user says "ElevenLabs v4", use ElevenLabs TTS v4 Turbo
    (`match` suggests it); choose `elevenlabs-tts-v4` only if they explicitly want that exact, non-Turbo model.
-3. Jobs the user didn't name: fill them from the Pro level of `models.py tiers` (path B, no question needed)
-   and say which models you added, so the user can change them.
-4. `python3 SKILL_DIR/scripts/models.py choose --project P i2v=<id> keyframe=<id> scene=<id> tts=<id> music=<id> sfx=<id>`
-   (`i2v_audio`, for shots with real sound, defaults to a video model that makes sound: the user's video model
-   when it does).
-5. Give the total (§5) and wait for an OK before the first paid step.
+3. Jobs the user didn't name: fill them from the **default stack** (`models.py tiers` → `--tier default`:
+   **Seedance 2.5 Flash** for video, **ElevenLabs TTS v4 Turbo** for voice-over, Pro-level images & music)
+   and state every model you filled in, so the user can change any of them.
+4. `python3 SKILL_DIR/scripts/models.py choose --project P --tier default <user_overrides...>`
+   (`i2v_audio`, for shots with real sound, defaults to the video model when it makes sound — Seedance 2.5
+   Flash includes native audio).
+5. Show the **complete itemized estimated quote for the whole video** (§5: video + images + voice-over +
+   music + SFX = total) and wait for an OK before the first paid step.
 
 ## 3. Path B: recommended levels: Arena ratings and the skill's estimate
 ```bash
@@ -132,14 +147,23 @@ what the data supports (its rating, sound included, price), then the total from 
 
 (The models and prices in these examples are illustrative; use the ones in `model_tiers.md` and `cost`.)
 
-## 5. The total price: quote or estimate
-Always give the user a total in dollars before anything is made:
+## 5. Mandatory whole-video estimated quote (ALWAYS before any generation!)
+**NEVER start paid generation (keyframes, video clips, voice-over, music, or SFX) without first showing
+the user the itemized estimated quote for the WHOLE video and getting confirmation.** Run:
 ```bash
 python3 SKILL_DIR/scripts/models.py cost --project P --videos <n>          # the chosen models
-python3 SKILL_DIR/scripts/models.py cost --project P --tier pro --videos <n>   # a level, before choosing
+python3 SKILL_DIR/scripts/models.py cost --project P --tier default --videos <n>   # default stack before choosing
 ```
-It prices a plan (§10; override with `--shots`, `--takes`, `--clip-seconds`, `--resolution`, `--music-seconds`, …)
-line by line and prints **QUOTE** or **ESTIMATE**:
+Pass the **real planned numbers** for this specific video (`--shots`, `--takes`, `--clip-seconds`,
+`--resolution`, `--audio-shots`, `--keyframes`, `--scenes`, `--vo-chars`, `--music-seconds`, `--sfx`,
+`--cutouts` — set any unused part to `0`, e.g. `--vo-chars 0` for a music-only film or `--shots 0` for a
+pure real-screenshot guide). Show the user every cost component cleanly:
+- **Video clips** (model, count × length, subtotal)
+- **Images / keyframes & scenes** (model, count, subtotal — or `$0` if using real captures/photos)
+- **Voice-over** (model, approximate character count, subtotal — or `$0` if none)
+- **Music & SFX** (model, duration/count, subtotal — or `$0` if none)
+- **Total estimated quote** (`QUOTE` vs `ESTIMATE`, plus Low Tide price when cheaper)
+It prints **QUOTE** or **ESTIMATE**:
 - **QUOTE**: every line is a live Tokentide price: a free quote for video, music, sound effects and queued
   voices, the catalog price × today's multiplier for images and other voices. Tell the user "Quote: $X for N
   videos at today's prices", and that retakes beyond the plan cost extra. Prices change through the UTC day (they
@@ -185,11 +209,13 @@ and price. Use it to switch one job, to find a Private model for a confidential 
 appears: offer one test take next to the current pick. Switch with `models.py choose --project P <job>=<id>`;
 never switch silently mid-batch. Re-run `tiers` (or `recommend`) before each new batch.
 
-## 9. Capability rules that override ratings
-- **Real people, couples & portraits on screen (CRITICAL)** → ALWAYS use person-strong families such as
-  **Kling (V3 / O3)** or **Veo (3.x)**; **NEVER** use Seedance `-basic` models for shots with people
-  (they reject person-bearing inputs with `409`). Pair with `@r2v` (e.g. Kling O3 `elements` or
-  `reference_images`) for multi-shot facial continuity.
+## 9. Capability rules & defaults
+- **Required defaults (always propose first unless the user specifies otherwise):** **Seedance 2.5 Flash**
+  (`seedance-2-5-flash-image-to-video-basic`) for video and **ElevenLabs TTS v4 Turbo**
+  (`elevenlabs-tts-v4-turbo`) for voice-overs.
+- **If Seedance `-basic` returns `409 needs_consent` on a person-bearing shot** → explain plainly to the
+  user and offer switching those shots to **Kling (V3 / O3)** or **Veo (3.x)** (and `@r2v` with `elements`
+  for multi-shot facial continuity). Never silently override the user's model choice without telling them.
 - **Web apps / SaaS / software video guides** → real captured UI screenshots animated by `assemble.py`
   (`shots[].image` + focal zoom/pan) cost **$0** in image/video generation. Pass the actual number of
   generative shots to `models.py cost` (e.g. `--shots 0` or `--shots 1` if only adding a conceptual intro,

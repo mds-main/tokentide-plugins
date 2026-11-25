@@ -54,16 +54,14 @@ python3 scripts/models.py cost --project projects/my-product --videos 3   # the 
 ```
 Then ask your agent, e.g. "Make our new insulated bottle go viral on TikTok, Reels and X — use Tokentide".
 
-## Choosing models
-Every new request starts with one question: do you name the models, or should the agent recommend them? If you
-name them, the agent checks Tokentide offers them (and says so plainly when it doesn't, with the closest ones).
-If you want a recommendation, `models.py tiers` takes the 30 most recent models per job, rates video and image
-models with the Arena leaderboard (arena.ai's open dataset under CC BY 4.0, read through Hugging Face's dataset
-viewer and cached for a day in `arena.json`) and voice and music models with the skill's own estimate (Arena
-doesn't rate them), prices them with Tokentide and offers three levels on the price/quality frontier: **Essential** (best rated
-among the cheapest), **Pro** (best rated in the middle price range) and **Max** (best rated at any price). Either
-way `models.py cost` gives the total before anything is made: a quote when every line is a live Tokentide price,
-otherwise an estimate, labelled as one. Details: `references/models.md`.
+## Choosing models & up-front quote
+By default, every new request proposes **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`)
+for video and **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with live
+Pro-level image and music models from Tokentide — unless you explicitly specify different models or ask to
+compare the **Essential / Pro / Max** tiers (`models.py tiers`, Arena leaderboard ratings for video/images
+under CC BY 4.0 and skill estimates for voice/music). Before any paid generation starts, `models.py cost`
+always presents the full itemized estimated quote for the whole video (video clips, images/keyframes,
+voice-over, music and SFX). Details: `references/models.md`.
 
 ## Tokentide-specific behaviour
 - Prices = Venice list × the tide multiplier (cheapest late in the UTC day); `--lane lowtide` for

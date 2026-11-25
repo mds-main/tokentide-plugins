@@ -76,7 +76,7 @@ UI / readable text warps ─▶ STOP using @i2v on UI/text! Use shots[].image + 
 product / object morphs ─▶ shorten to 4–5 s, slower/locked camera, single action, hands off label ─▶ Alt premium model
 wrong motion ─▶ rewrite motion prompt with timed beats (0–2s / 2–4s); add end_image for landing pose
 422 content violation ─▶ remove third-party brands or celebrity references; describe neutrally
-409 needs_consent (Seedance) ─▶ Seedance -basic rejects people: switch video model to Kling or Veo!
+409 needs_consent (Seedance -basic) ─▶ tell the user and offer switching those person-bearing shots to Kling V3/O3 or Veo 3.1
 2 failed takes with same approach ─▶ change strategy, never blindly re-roll
 ```
 

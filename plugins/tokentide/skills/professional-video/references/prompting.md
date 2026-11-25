@@ -115,8 +115,9 @@ What elevates a video from "AI clips" to cinema is **deliberate directing across
   `end_image` (up to ~15 s); O3 Pro R2V supports `elements` (up to 4 consistent people/characters/objects).
 - **Veo (3.x Full / Fast):** top-tier photorealism, nuanced human expression, cinematic lighting and rich
   native audio (4–8 s); ideal for hero shots.
-- **Seedance (2.x):** strong motion, first + last frame, native stereo audio, long takes; **WARNING:**
-  `-basic` models reject person-bearing inputs (`409`) — reserve for non-human scenes/products/environments.
+- **Seedance (2.5 Flash — default video model / 2.x):** fast, high-value motion, 4–30 s takes, native
+  audio, R2V support (`seedance-2-5-flash-reference-to-video-basic`). Note: if a `-basic` variant rejects
+  a person-bearing input with `409 needs_consent`, offer Kling V3/O3 or Veo 3.1 for those shots.
 - **Wan, LTX, Grok Imagine:** fast/affordable drafts and B-roll; Grok `-private` keeps zero retention.
 - **Topaz upscale:** finishing pass on a master (`video.py upscale`).
 - **Image edit families:** Nano Banana (Pro / 2.x), Seedream (V5 Pro), GPT Image, Qwen/Flux — check

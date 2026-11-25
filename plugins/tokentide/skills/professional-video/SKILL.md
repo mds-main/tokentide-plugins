@@ -60,10 +60,14 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 - **Right-size pre-production to the request.** Full market/VOC/competitor research for growth campaigns;
   verified workflow/fact storyboard for tutorials, explainers and documentaries; creative treatment and
   visual bible for personal, narrative, artistic, event or commercial films. Never force irrelevant steps.
-- **User chooses models or a level, and knows the price first.** Every new media request asks whether the
-  user names the models or wants a recommendation (**Essential**, **Pro**, or **Max**, Arena-rated for
-  video/images, skill-estimated for voice/music, live-priced by Tokentide). Always state the total in
-  dollars before spending. Specs use aliases (`@i2v`), never hard-coded ids.
+- **Default models & mandatory up-front whole-video quote.** Unless the user explicitly requests other
+  models, ALWAYS propose by default **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`)
+  for video and **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with
+  live Pro-level image and music models from Tokentide's catalog (also offering Essential / Pro / Max
+  comparison or custom model choice if the user prefers). **NEVER start paid generation without first
+  showing the itemized estimated quote (price in USD) for the WHOLE video** — video clips, images/keyframes,
+  voice-over, music (if any), and SFX — and getting the user's OK. Specs use aliases (`@i2v`, `@tts`),
+  never hard-coded ids.
 - **Honest, lawful craft.** Disclose realistic AI when publishing, confirm consent for real people, prove
   factual claims, never leak secrets/PII in captures (`references/compliance.md`).
 - **Spend deliberately.** Quote before queueing, respect budget caps, batch non-urgent generation late in
@@ -81,9 +85,9 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 
 ## Master checklist (copy into your task list and adapt to the chosen workflow)
 ```
-[ ] 0  First question: the user's models, or our recommendation? (user's language)
+[ ] 0  Model proposal: propose default Seedance 2.5 Flash (video) + ElevenLabs v4 Turbo (VO) + Pro images/music (or let user compare levels / choose custom)
 [ ] 0  Setup: doctor --fix · link scripts · smart brief · init project (--canvas, --type)
-[ ] 0  Models: match user's models | tiers (Arena ratings) → user picks level · choose · cost → state models + total
+[ ] 0  Models & quote: models.py tiers → choose (--tier default | essential|pro|max | custom) → models.py cost → show FULL itemized quote for the whole video (video + images + VO + music + SFX) BEFORE any generation!
 [ ] 1  Visual Grounding: complete Reality Inventory → capture autonomously (browser/computer use, pausing at login if gated) AND/OR gather user references AND/OR lock Style Master → inspect every anchor!
 [ ] 2  Direction / Research: Creative Treatment & Storyboard (OR Full Research & Virality Strategy for marketing campaigns) → approval gate (plan + cost)
 [ ] 5  Video specs (briefs/vNN.json — best visual modality per shot)
@@ -97,18 +101,22 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 ```
 
 ## Phase 0 — Setup
-0. **First question, before anything else** (`references/models.md` §1): in the user's language, with
-   the multiple-choice question tool when available, ask how to choose the AI models for video, images,
-   voice and music:
-   - **"I'll choose them"**: user names models; you check Tokentide availability and give the total first.
-   - **"Recommend them for me"**: you compare the newest models (Arena leaderboard ratings for video and
-     images; skill's estimate for voice and music) and offer **Essential**, **Pro** and **Max** with
-     live prices.
-   For a new batch in an existing project, add "keep the same models as last time". Skip when the user
-   already named models/level or asked for research/strategy only. User away → recommend; pick Pro if
-   within budget, else Essential, and say so in one line. (When a video uses mostly real captures/footage
-   with zero or few AI clips, note plainly that real visuals cost `$0` to generate and only audio plus
-   any generative shots incur model spend.)
+0. **Model proposal, before any paid generation** (`references/models.md` §1): in the user's language,
+   with the multiple-choice question tool when available, ALWAYS propose the skill's default stack first
+   unless the user already named different models:
+   - **"Use the recommended defaults (Recommended)"**: **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`)
+     for video and **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with
+     Tokentide's live Pro-level image and music models — and we show the full itemized price quote for the
+     whole video before generating anything.
+   - **"Compare Essential / Pro / Max levels"**: compare the newest Tokentide models (Arena leaderboard
+     ratings for video and images; skill's estimate for voice and music) across three price/quality levels.
+   - **"I'll choose my own models"**: the user names specific models; you verify Tokentide availability
+     and show the full itemized quote first.
+   For a new batch in an existing project, add "keep the same models as last time". Skip when the request
+   is research/strategy only. User away → use `--tier default` (Seedance 2.5 Flash + ElevenLabs v4 Turbo)
+   if within budget, else Essential, and state the choice in one line. (When a video uses mostly real
+   captures/footage with zero or few AI clips, note plainly that real visuals cost `$0` to generate and
+   only audio plus any generative shots incur model spend.)
 1. **Environment — sign in once, fix everything yourself** (user approves in browser at most once):
    - `python3 SKILL_DIR/scripts/doctor.py --fix`: verifies Python, FFmpeg filters, fonts, key and network,
      and installs a pinned, checksum-verified FFmpeg (libass, freetype, fontconfig, libx264) automatically
@@ -133,20 +141,32 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
    defaults and list them.
 3. **Project:** `python3 SKILL_DIR/scripts/init_project.py "<Title>" --type <general|campaign|guide|personal|commercial|explainer|story> --canvas <16:9|9:16|1:1> --platforms <...> --budget-usd 50 --languages en`
    creates `P = projects/<slug>/` with `assets/{people,captures,product,brand,fonts,references,footage,scenes,music,sfx}/`.
-4. **Models — always from the live catalog** (`references/models.md`):
-   - **User's models** (§2): `models.py match "<name>" ... --project P` → fill unnamed jobs from Pro →
-     `models.py choose --project P ...`.
-   - **Recommendation** (§3–4): `models.py tiers --project P --videos <n>` → present **Essential**,
-     **Pro** and **Max** plainly in the user's language → `models.py choose --project P --tier <level>`.
-   - **Capability overrides (`references/models.md` §9):**
-     - **Real people on screen:** NEVER use Seedance `-basic` (409 rejection); use person-strong families
-       (Kling V3/O3, Veo 3.1) and set `@r2v` for multi-shot identity continuity when available.
+4. **Models & mandatory whole-video price quote — always from the live catalog** (`references/models.md`):
+   - **Recommended default (ALWAYS proposed first unless the user specifies otherwise):** run
+     `models.py tiers --project P --videos <n>` then `models.py choose --project P --tier default`
+     (sets `@i2v`/`@i2v_audio` = **Seedance 2.5 Flash** `seedance-2-5-flash-image-to-video-basic`, `@tts` =
+     **ElevenLabs TTS v4 Turbo** `elevenlabs-tts-v4-turbo`, plus live Pro-level `@keyframe`, `@scene`,
+     `@music`, `@sfx`).
+   - **User's custom models** (§2): `models.py match "<name>" ... --project P` → fill any unnamed jobs
+     from `--tier default` (so unnamed video stays Seedance 2.5 Flash and unnamed voice-over stays
+     ElevenLabs v4 Turbo) → `models.py choose --project P ...`.
+   - **Compare levels** (§3–4): present **Essential**, **Pro** and **Max** from `P/model_tiers.md` in
+     plain words in the user's language → `models.py choose --project P --tier <level>`.
+   - **Capability notes (`references/models.md` §9):**
      - **Multi-reference compositing:** verify `maxInputImages` (`models.py show <id>`) when combining ≥3 inputs.
+     - **Upstream 409 on person-bearing Seedance `-basic` shots:** if a specific shot with real faces
+       triggers `409 needs_consent`, tell the user plainly and offer switching those shots to Kling V3/O3
+       or Veo 3.1.
      - **Capture/footage-heavy videos:** pass the real count of generative shots (`--shots`, `--takes`,
-       `--clip-seconds`, `--music-seconds`) to `models.py cost` so the quote matches reality.
-   - **Always give the total first** (§5): `models.py cost --project P --videos <n>` → state each model
-     plainly plus "Quote: $X" or "About $X (estimate)". Credit Arena for video/image ratings. Get OK
-     before paid generation unless told to proceed autonomously.
+       `--clip-seconds`, `--keyframes`, `--scenes`, `--vo-chars`, `--music-seconds`, `--sfx`, `--cutouts`)
+       to `models.py cost` so the quote matches the actual video plan!
+   - **MANDATORY whole-video estimated quote gate (§5 — NEVER skip!):** run
+     `models.py cost --project P --videos <n> ...` with the real counts for the planned video(s) and show
+     the user the **complete itemized price breakdown covering the entire video** (video clips, keyframes &
+     scenes, voice-over, music if any, SFX, and total: `"Quote: $X"` or `"Estimated total: ~$X"` plus Low
+     Tide price if cheaper), crediting Arena for image/video ratings. **Wait for the user's explicit OK
+     before running ANY paid image, video, voice-over, or music generation** (re-quote at the Phase 4
+     approval gate once exact shot counts and script/music length are finalized!).
 5. Mention once for commercial/public releases: Tokentide's terms (draft 1 Nov 2026) grant output
    ownership *subject to upstream terms*, and Venice's public terms (Jun 2026) restrict their licence to
    personal, non-commercial use — advise getting written commercial terms before publishing brand content.
@@ -186,8 +206,12 @@ Pass the **Grounding Readiness Gate** (`visual-grounding.md` §9) before Phase 5
   with the emotional/visual arc, shot-by-shot cinematography (shot size, camera move, lighting/palette,
   visual anchor per shot), optional narration or minimal title cards, and musical energy curve.
 
-**Approval gate:** present one concise screen with the creative direction/storyboard, visual anchor map,
-script/beat outline, and live total cost (`models.py cost`) before spending on paid generation.
+**Approval gate (MANDATORY before any paid generation):** present one concise screen with the creative
+direction/storyboard, visual anchor map, script/beat outline, chosen models (defaulting to **Seedance 2.5
+Flash** for video and **ElevenLabs TTS v4 Turbo** for voice-over unless the user chose otherwise), and the
+**full itemized estimated quote for the whole video** from `models.py cost` (video clips + images/keyframes
++ voice-over + music if any + SFX = total USD). Do NOT start paid generation until the user approves the
+plan and total price.
 
 ## Phase 5 — Video specs (`P/briefs/vNN.json`)
 Copy `P/briefs/_example_spec.json` (`references/post-production.md` §1; storycraft & formats:

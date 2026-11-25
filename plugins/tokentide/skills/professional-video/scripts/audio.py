@@ -139,7 +139,9 @@ def cmd_tts(a):
     text = _text_for(a, spec)
     root = spec.root if spec else common.find_project_root(Path(a.out).resolve().parent if a.out else Path.cwd())
     picks = common.project_meta(root).get("models", {}) if root else {}
-    model = common.resolve_model(root, a.model or vo.get("model") or picks.get("tts") or "tts-kokoro")
+    cached_models = common.load_models(root) if root else {}
+    default_tts = "elevenlabs-tts-v4-turbo" if (not cached_models or "elevenlabs-tts-v4-turbo" in cached_models) else "tts-kokoro"
+    model = common.resolve_model(root, a.model or vo.get("model") or picks.get("tts") or default_tts)
     speed = a.speed if a.speed is not None else vo.get("speed", 1.0)
     out = Path(a.out) if a.out else (spec.root / "audio" / f"{spec.vid}_vo.{a.format}" if spec else None)
     if not out:

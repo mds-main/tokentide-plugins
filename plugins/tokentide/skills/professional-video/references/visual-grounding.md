@@ -133,9 +133,11 @@ When ANY identifiable real person, group, presenter, or pet appears:
      `keyframe.fidelity: "person"` explicitly; use `"subject"` for pets/non-human subjects).
    - Produce 3–4 candidates at `2K` and **inspect side-by-side against the originals** (`qa.py vision
      --mode people`). Reject likeness scores `< 4/5` BEFORE spending on video animation!
-3. **Animate with identity-preserving models & camera discipline:**
-   - **Person-safe models ONLY:** use **Kling (V3 / O3)**, **Veo (3.x)** or other Arena-proven human-safe
-     models. **NEVER use Seedance `-basic` models on shots containing people** (`409` rejection).
+3. **Animate with identity-preserving continuity & camera discipline:**
+   - **Default model & `409` fallback:** always propose **Seedance 2.5 Flash** by default unless the user
+     specifies another video model (`references/models.md`). If a specific person-bearing shot triggers an
+     upstream `409 needs_consent` rejection on a Seedance `-basic` model, inform the user plainly and offer
+     switching those shots to **Kling (V3 / O3)** or **Veo (3.x)**.
    - **Reference-to-Video (`@r2v`) + Start/End anchoring:** pass reference photos via `video.reference_images`
      or Kling O3 `video.elements` (`video.py` auto-encodes local files within 4.5 MB!) AND/OR lock both
      start (`image`) and closing (`end_image`) keyframes from the same references.

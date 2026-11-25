@@ -104,6 +104,10 @@ MODELS = [
     _vid("kling-v3-pro-image-to-video", "2026-02-05", ["5s", "10s", "15s"], ["720p", "1080p"], end=True, name="Kling V3 Pro"),
     _vid("kling-v3-standard-image-to-video", "2026-02-05", ["5s", "10s", "15s"], ["720p", "1080p"], end=True,
          name="Kling V3 Standard"),
+    _vid("seedance-2-5-flash-image-to-video-basic", "2026-10-15", [f"{i}s" for i in range(4, 31)], ["480p", "720p"],
+         end=True, name="Seedance 2.5 Flash"),
+    _vid("seedance-2-5-flash-reference-to-video-basic", "2026-10-15", [f"{i}s" for i in range(4, 31)], ["480p", "720p"],
+         end=True, name="Seedance 2.5 Flash R2V"),
     _vid("seedance-2-5-image-to-video-basic", "2026-09-10", [f"{i}s" for i in range(4, 31)], ["480p", "720p", "1080p"],
          end=True, name="Seedance 2.5"),
     _vid("seedance-2-0-fast-image-to-video-basic", "2026-03-01", [f"{i}s" for i in range(4, 16)], ["480p", "720p"],
@@ -161,6 +165,7 @@ def _arena(category, items, date="2026-11-17"):
 ARENA = {
     "image_to_video": _arena("overall", [("Veo 3.1 (Audio)", 1400), ("Veo 3.1 Fast (Audio)", 1390),
                                          ("Kling 3.0 Pro", 1350), ("Dreamina Seedance 2.5 (720p)", 1300),
+                                         ("Dreamina Seedance 2.5 Flash (720p)", 1280),
                                          ("Seedance 2.0 Fast (720p)", 1250), ("Utopai X", 1450)], "2026-11-09"),
     "text_to_video": _arena("overall", [("Veo 3.1 (Audio)", 1360)], "2026-11-09"),
     # Product images rank on multi-image editing, which comes after two other categories and past the cached rows.
@@ -180,7 +185,7 @@ def list_price(b, kind):
             return round(0.092 * chars / 1000, 6)
         return round(0.004 * float(b.get("duration_seconds") or 30), 4)
     secs = float(str(b.get("duration", "5s")).rstrip("s") or 5)
-    rate = 0.62 if "veo" in m else 0.2 if "pro" in m or "max" in m else 0.06 if "fast" in m else 0.11
+    rate = 0.62 if "veo" in m else 0.2 if "pro" in m or "max" in m else 0.06 if ("fast" in m or "flash" in m) else 0.11
     rate *= 1.25 if b.get("audio") else 1.0
     return round(rate * secs, 4)
 
@@ -680,18 +685,29 @@ def main():
           and arena["boards"]["video"]["published"] == "2026-11-09", json.dumps(arena)[:300])
     tiers = common.load_json(root / "model_tiers.json")
     got = {lv: tiers["tiers"][lv]["models"] for lv in M.LEVELS}
-    check("Essential / Pro / Max video models", [got[lv].get("i2v") for lv in M.LEVELS] == [
-        "seedance-2-5-image-to-video-basic", "kling-v3-pro-image-to-video", "veo3.1-full-image-to-video"], json.dumps(got))
+    dflt = tiers["default"]["models"]
+    check("default stack proposes Seedance 2.5 Flash for video and ElevenLabs v4 Turbo for voice-over",
+          dflt.get("i2v") == "seedance-2-5-flash-image-to-video-basic"
+          and dflt.get("i2v_audio") == "seedance-2-5-flash-image-to-video-basic"
+          and dflt.get("tts") == "elevenlabs-tts-v4-turbo"
+          and tiers["default"]["total_usd"] > 0 and tiers["default"]["label"] == "quote", json.dumps(tiers.get("default")))
+    check("Essential / Pro / Max video models (Pro uses Seedance 2.5 Flash default)", [got[lv].get("i2v") for lv in M.LEVELS] == [
+        "seedance-2-5-image-to-video-basic", "seedance-2-5-flash-image-to-video-basic", "veo3.1-full-image-to-video"], json.dumps(got))
     check("voice and music levels come from the estimate; ElevenLabs v4 is never a default (v4 Turbo instead)",
-          got["max"].get("tts") == "elevenlabs-tts-v4-turbo" and got["essential"].get("tts") == "tts-kokoro"
+          got["max"].get("tts") == "elevenlabs-tts-v4-turbo" and got["pro"].get("tts") == "elevenlabs-tts-v4-turbo"
+          and got["essential"].get("tts") == "tts-kokoro"
           and "elevenlabs-tts-v4" not in json.dumps({lv: got[lv] for lv in M.LEVELS}).replace("elevenlabs-tts-v4-turbo", "")
           and got["max"].get("music") == "elevenlabs-music"
           and tiers["jobs"]["tts"]["basis"] == "estimated" and tiers["jobs"]["i2v"]["basis"] == "leaderboard"
           and got["max"].get("keyframe") == "seedream-v5-pro-edit", json.dumps(got))
     check("every level has a total", all(tiers["tiers"][lv]["total_usd"] > 0 and tiers["tiers"][lv]["label"] == "quote"
                                          for lv in M.LEVELS))
+    run("models choose --tier default", "models.py", "choose", "--project", root, "--tier", "default",
+        expect=("@i2v        -> seedance-2-5-flash-image-to-video-basic", "@tts        -> elevenlabs-tts-v4-turbo"))
+    run("models cost --tier default", "models.py", "cost", "--project", root, "--tier", "default", "--videos", "1",
+        expect=("QUOTE:", "Seedance 2.5 Flash", "ElevenLabs TTS v4 Turbo", "| **Total** |"))
     run("models choose --tier pro", "models.py", "choose", "--project", root, "--tier", "pro",
-        expect=("@i2v        -> kling-v3-pro-image-to-video",))
+        expect=("@i2v        -> seedance-2-5-flash-image-to-video-basic", "@tts        -> elevenlabs-tts-v4-turbo"))
     run("models match: the user's own models", "models.py", "match", "Kling 3 Pro", "Sora 2", "eleven labs v4",
         "--project", root, expect=('"Kling 3 Pro" — AVAILABLE', '"Sora 2" — NOT AVAILABLE', "elevenlabs-tts-v4",
                                    "i2v=kling-v3-pro-image-to-video", "tts=elevenlabs-tts-v4-turbo",

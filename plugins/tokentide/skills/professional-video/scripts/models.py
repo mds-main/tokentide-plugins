@@ -100,6 +100,15 @@ ARENA_MAX_AGE_H = 24
 # Models the skill never picks by default (levels, options, suggestions), with the variant it uses instead. Only an
 # explicit request from the user for that exact model selects one (models.py choose warns).
 NOT_DEFAULT = {"elevenlabs-tts-v4": "elevenlabs-tts-v4-turbo"}
+# Default models the skill ALWAYS proposes first (unless the user explicitly states different models), whenever
+# they are available in the live catalog for the current key.
+DEFAULT_MODELS = {
+    "i2v": "seedance-2-5-flash-image-to-video-basic",
+    "i2v_audio": "seedance-2-5-flash-image-to-video-basic",
+    "r2v": "seedance-2-5-flash-reference-to-video-basic",
+    "t2v": "seedance-2-5-flash-text-to-video-basic",
+    "tts": "elevenlabs-tts-v4-turbo",
+}
 # The skill's own estimate for jobs no leaderboard rates (Nov 2026): a rough quality prior per maker or model
 # family, matched on the model id (first match wins). Recency (newest version first, 🆕 bonus) and tier words
 # (hd/max vs turbo/flash) adjust it. It ranks; it does not measure.
@@ -1251,7 +1260,16 @@ def cmd_tiers(a):
                                "unpriced": {d["id"]: d.get("quote_error", "no price") for d in r["unpriced"]}}
     for lv in LEVELS:
         picks = {job: (r["levels"].get(lv) or {}).get("id") for job, r in res.items()}
-        picks["i2v_audio"] = audio_pick(res["i2v"], lv, models)
+        # Pro level also reflects the skill's required defaults when available in the live catalog.
+        if lv == "pro":
+            if DEFAULT_MODELS["i2v"] in models:
+                picks["i2v"] = DEFAULT_MODELS["i2v"]
+            if DEFAULT_MODELS["tts"] in models:
+                picks["tts"] = DEFAULT_MODELS["tts"]
+        if lv == "pro" and picks.get("i2v") == DEFAULT_MODELS["i2v"]:
+            picks["i2v_audio"] = DEFAULT_MODELS["i2v_audio"]
+        else:
+            picks["i2v_audio"] = audio_pick(res["i2v"], lv, models)
         picks["sfx"] = sfx_pick(models_list, picks.get("music"), a.recent)
         if bg:
             picks["bg_remove"] = bg
@@ -1259,9 +1277,40 @@ def cmd_tiers(a):
         report["tiers"][lv] = {"name": LEVEL_NAMES[lv], "models": {k: v for k, v in picks.items() if v and k != "bg_remove"},
                                "names": {k: display_name(models[v]) for k, v in picks.items() if v and v in models},
                                "lines": rows, **summarize(rows, plan, models, LANE)}
+    # Recommended default stack: ALWAYS proposes Seedance 2.5 Flash for video and ElevenLabs TTS v4 Turbo for
+    # voice-overs (whenever available in the live catalog), paired with Pro-level images and music.
+    def_picks = dict(report["tiers"]["pro"]["models"])
+    for job, mid in DEFAULT_MODELS.items():
+        if job in ("i2v", "i2v_audio", "tts") and mid in models:
+            def_picks[job] = mid
+    if DEFAULT_MODELS["r2v"] in models:
+        def_picks.setdefault("r2v", DEFAULT_MODELS["r2v"])
+    if bg:
+        def_picks["bg_remove"] = bg
+    def_rows = plan_lines(def_picks, plan, pricer)
+    report["default"] = {
+        "name": "Recommended default",
+        "models": {k: v for k, v in def_picks.items() if v and k != "bg_remove"},
+        "names": {k: display_name(models[v]) for k, v in def_picks.items() if v and v in models},
+        "lines": def_rows,
+        **summarize(def_rows, plan, models, LANE),
+    }
     # ---- the report the agent reads (and adapts for the user, in the user's language)
     src = report["source"]
     L = [f"# Model levels — live from Tokentide {now:%Y-%m-%d} ({LANE} lane)", ""]
+    d_info = report["default"]
+    L += [
+        "## Recommended default (propose first unless the user specifies other models)",
+        f"- **Video:** {d_info['names'].get('i2v', '—')} (`{d_info['models'].get('i2v', '—')}`)",
+        f"- **Voice-over:** {d_info['names'].get('tts', '—')} (`{d_info['models'].get('tts', '—')}`)",
+        f"- **Images (compositing):** {d_info['names'].get('keyframe', '—')} (`{d_info['models'].get('keyframe', '—')}`)",
+        f"- **Images (scenes):** {d_info['names'].get('scene', '—')} (`{d_info['models'].get('scene', '—')}`)",
+        f"- **Music:** {d_info['names'].get('music', '—')} (`{d_info['models'].get('music', '—')}`)",
+        f"- **Total ({plan['videos']} videos):** **{money(d_info['total_usd'])}** ({d_info['label']}, ≈ {money(d_info['per_video_usd'])}/video)"
+        + (f" · Low Tide ≈ {money(d_info['lowtide_usd'])}" if d_info.get("lowtide_usd") else ""),
+        "Choose with: `models.py choose --project <P> --tier default`",
+        "",
+    ]
     if ranks["boards"]:
         L.append(f"{ranks.get('credit') or src['name']} Read on {src['date'] or '?'}"
                  + (" (leaderboards published " + ", ".join(sorted({v for v in src['published'].values() if v})) + ")"
@@ -1280,7 +1329,21 @@ def cmd_tiers(a):
     labels = {"i2v": "Video", "keyframe": "Images: product shots", "scene": "Images: backgrounds", "tts": "Voice",
               "music": "Music"}
     for job in TIER_JOBS:
-        L.append(f"| {labels[job]} | " + " | ".join(level_cell(res[job]["levels"].get(lv), job) for lv in LEVELS) + " |")
+        def _cell(lv):
+            mid = report["tiers"][lv]["models"].get(job)
+            d = res[job]["levels"].get(lv)
+            if mid and (not d or d.get("id") != mid):
+                cand = next((x for x in (res[job]["priced"] + res[job]["rated"]) if x.get("id") == mid), None)
+                if cand:
+                    d = cand
+                elif mid in models:
+                    d = describe(models[mid], job)
+                    if job == "i2v":
+                        usd, _, _, _ = pricer.video(mid, plan["clip_seconds"], plan["resolution"], False)
+                        if usd is not None:
+                            d["usd_per_s"] = round(usd / max(1, plan["clip_seconds"]), 4)
+            return level_cell(d, job)
+        L.append(f"| {labels[job]} | " + " | ".join(_cell(lv) for lv in LEVELS) + " |")
     L.append("| Clips with sound | " + " | ".join(
         f"`{report['tiers'][lv]['models'].get('i2v_audio') or '—'}`" for lv in LEVELS) + " |")
     L.append("| ≈ per video | " + " | ".join(money(report["tiers"][lv]["per_video_usd"]) for lv in LEVELS) + " |")
@@ -1313,7 +1376,7 @@ def cmd_tiers(a):
         if r["unpriced"]:
             L.append("No price: " + ", ".join(f"`{d['id']}` ({d.get('quote_error', 'no price')[:60]})" for d in r["unpriced"][:6]))
         L.append("")
-    L += ["Then: `models.py choose --project <P> --tier essential|pro|max` and tell the user the models in plain words.",
+    L += ["Then: `models.py choose --project <P> --tier default` (or `essential|pro|max`) and tell the user the models in plain words.",
           "Exact cost of a level for another plan: `models.py cost --project <P> --tier <level> --videos <n>`."]
     text = "\n".join(L) + "\n"
     out_dir = root or Path(".")
@@ -1428,7 +1491,10 @@ def cmd_cost(a):
         {m["id"]: m for m in catalog(argparse.Namespace(project=str(root), cache=None, out=None))}
     if a.tier:
         tiers = common.load_json(root / "model_tiers.json", default={}) or {}
-        picks = dict(((tiers.get("tiers") or {}).get(a.tier) or {}).get("models") or {})
+        if a.tier == "default":
+            picks = dict((tiers.get("default") or {}).get("models") or {})
+        else:
+            picks = dict(((tiers.get("tiers") or {}).get(a.tier) or {}).get("models") or {})
         if not picks:
             common.die(f"No level '{a.tier}' in {root}/model_tiers.json — run `models.py tiers --project {root}` first.")
     else:
@@ -1488,10 +1554,12 @@ def cmd_choose(a):
     known = common.load_models(root)
     picks = meta.setdefault("models", {})
     if not a.tier and not a.picks:
-        common.die("Pass --tier essential|pro|max and/or job=model_id pairs.")
+        common.die("Pass --tier default|essential|pro|max and/or job=model_id pairs.")
     if a.tier:
         tiers = common.load_json(root / "model_tiers.json", default={}) or {}
-        level = ((tiers.get("tiers") or {}).get(a.tier) or {}).get("models") or {}
+        level = ((tiers.get("default") or {}).get("models") or {}) if a.tier == "default" else (
+            ((tiers.get("tiers") or {}).get(a.tier) or {}).get("models") or {}
+        )
         if not level:
             common.die(f"No level '{a.tier}' in {root}/model_tiers.json — run `models.py tiers --project {root}` first.")
         picks.update({k: v for k, v in level.items() if v})
@@ -1617,7 +1685,7 @@ def main():
     ma.add_argument("--json", action="store_true")
     co = sub.add_parser("cost", help="total price of a planned batch (quote or estimate)")
     co.add_argument("--project", required=True)
-    co.add_argument("--tier", choices=LEVELS, help="price a level from model_tiers.json instead of the chosen models")
+    co.add_argument("--tier", choices=("default", *LEVELS), help="price default or a level from model_tiers.json")
     co.add_argument("picks", nargs="*", help="job=model_id overrides, e.g. i2v=kling-v4-image-to-video")
     co.add_argument("--lane", choices=["standard", "lowtide"])
     co.add_argument("--refresh", action="store_true", help="refetch the catalog instead of using models.json")
@@ -1646,7 +1714,7 @@ def main():
     r.add_argument("--cache", help="use a cached models.json instead of refetching")
     c = sub.add_parser("choose")
     c.add_argument("--project", required=True)
-    c.add_argument("--tier", choices=LEVELS, help="take every job's model from this level of model_tiers.json")
+    c.add_argument("--tier", choices=("default", *LEVELS), help="take every job's model from default or a level of model_tiers.json")
     c.add_argument("picks", nargs="*", help="job=model_id, e.g. i2v=kling-v3-pro-image-to-video (overrides --tier)")
     a = ap.parse_args()
     {"tiers": cmd_tiers, "match": cmd_match, "cost": cmd_cost, "list": cmd_list, "show": cmd_show,
