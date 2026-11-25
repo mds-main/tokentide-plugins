@@ -220,5 +220,5 @@ audio, 4–15 s / 4–30 s), wan-2.6–3.0, ltx-2.3/2.5, grok-imagine-*-private 
 $0.088/s 720p), runway-gen4-5, gemini-omni-flash-1-1, topaz-video-upscale (≈ $0.013/s 720p,
 $0.025/s 1080p, $0.10/s 4K). Sora 2 is not on Venice (OpenAI removed its Sora 2 API on 24 Sep 2026).
 Audio: tts-kokoro (default), tts-chatterbox-hd / tts-minimax-speech-02-hd, elevenlabs-tts-v4-turbo (queued audio
-route, per 1,000 characters), nvidia/parakeet-tdt-0.6b-v3 (transcription).
+route, per 1,000 characters), elevenlabs/scribe-v2 (transcription default; fallback nvidia/parakeet-tdt-0.6b-v3).
 Any total from this snapshot is an **estimate** (§5).

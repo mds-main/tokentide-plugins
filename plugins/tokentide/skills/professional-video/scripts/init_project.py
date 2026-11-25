@@ -28,6 +28,8 @@ def main():
     ap.add_argument("--languages", default="en")
     ap.add_argument("--markets", default="")
     ap.add_argument("--url", default="")
+    ap.add_argument("--canvas", default="9:16", choices=["9:16", "16:9", "1:1"],
+                    help="default video canvas aspect ratio (9:16 vertical, 16:9 landscape, 1:1 square)")
     ap.add_argument("--force", action="store_true", help="re-copy templates into an existing project")
     a = ap.parse_args()
 
@@ -60,6 +62,7 @@ def main():
             "languages": [x.strip() for x in a.languages.split(",") if x.strip()],
             "markets": [x.strip() for x in a.markets.split(",") if x.strip()],
             "budget_usd": a.budget_usd,
+            "canvas": a.canvas,
             "notes": "budget_usd is a hard cap enforced by video.py run; raise it only with the user's OK."})
     print(f"{'Updated' if exists else 'Created'} project: {root}")
     for c in copied:

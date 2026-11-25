@@ -55,27 +55,33 @@ def chunk_words(words, wpc, max_chars, gap_break=0.45):
     return chunks
 
 
-def header(c) -> str:
+def header(c, canvas=None) -> str:
+    cv = canvas or common.canvas_for()
+    pos = cv["caption_pos"]
+    ml, mr = cv["caption_margins"]
     font = c["font"]
     hook_font = c.get("hook_font") or font
     prim, hl = common.ass_color(c["primary"]), common.ass_color(c["highlight"])
     oc = common.ass_color(c["outline_color"])
     shadow = common.ass_color("#000000", 0x80)
     box = common.ass_color("#000000", 0x55)
-    al, mv = POS.get(c["position"], POS["lower"])
+    al, mv = pos.get(c["position"], pos["lower"])
     big = int(c["size"] * 1.35)
+    hook_mv = pos["top"][1]
+    label_ml = cv["safe"]["left"]
+    label_mv = pos["top-left"][1]
     fmt = ("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, "
            "Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
            "MarginL, MarginR, MarginV, Encoding")
     styles = [
-        f"Style: Caption,{font},{c['size']},{prim},{prim},{oc},{shadow},-1,0,0,0,100,100,0,0,1,{c['outline']},{c['shadow']},{al},90,150,{mv},1",
-        f"Style: Karaoke,{font},{c['size']},{hl},{prim},{oc},{shadow},-1,0,0,0,100,100,0,0,1,{c['outline']},{c['shadow']},{al},90,150,{mv},1",
-        f"Style: Single,{font},{big},{prim},{prim},{oc},{shadow},-1,0,0,0,100,100,0,0,1,{c['outline'] + 2},{c['shadow']},5,90,150,0,1",
-        f"Style: Hook,{hook_font},{c['hook_size']},{prim},{prim},{box},{shadow},-1,0,0,0,100,100,0,0,3,16,0,8,90,150,340,1",
-        f"Style: Label,{hook_font},42,{prim},{prim},{box},{shadow},-1,0,0,0,100,100,0,0,3,8,0,7,60,150,262,1",
-        f"Style: Title,{hook_font},112,{prim},{prim},{box},{shadow},-1,0,0,0,100,100,0,0,3,22,0,5,90,150,0,1",
+        f"Style: Caption,{font},{c['size']},{prim},{prim},{oc},{shadow},-1,0,0,0,100,100,0,0,1,{c['outline']},{c['shadow']},{al},{ml},{mr},{mv},1",
+        f"Style: Karaoke,{font},{c['size']},{hl},{prim},{oc},{shadow},-1,0,0,0,100,100,0,0,1,{c['outline']},{c['shadow']},{al},{ml},{mr},{mv},1",
+        f"Style: Single,{font},{big},{prim},{prim},{oc},{shadow},-1,0,0,0,100,100,0,0,1,{c['outline'] + 2},{c['shadow']},5,{ml},{mr},0,1",
+        f"Style: Hook,{hook_font},{c['hook_size']},{prim},{prim},{box},{shadow},-1,0,0,0,100,100,0,0,3,16,0,8,{ml},{mr},{hook_mv},1",
+        f"Style: Label,{hook_font},{cv['label_size']},{prim},{prim},{box},{shadow},-1,0,0,0,100,100,0,0,3,8,0,7,{label_ml},{mr},{label_mv},1",
+        f"Style: Title,{hook_font},{cv['title_size']},{prim},{prim},{box},{shadow},-1,0,0,0,100,100,0,0,3,22,0,5,{ml},{mr},0,1",
     ]
-    return ("[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\n"
+    return (f"[Script Info]\nScriptType: v4.00+\nPlayResX: {cv['w']}\nPlayResY: {cv['h']}\nWrapStyle: 0\n"
             "ScaledBorderAndShadow: yes\nYCbCr Matrix: TV.709\n\n[V4+ Styles]\n" + fmt + "\n" + "\n".join(styles) +
             "\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
 
@@ -128,14 +134,15 @@ def caption_events(words, c):
     return ev, srt
 
 
-def overlay_events(overlays, c):
+def overlay_events(overlays, c, canvas=None):
+    pos = (canvas or common.canvas_for())["caption_pos"]
     ev = []
     for ov in overlays or []:
         if ov.get("type") != "text" or not ov.get("text"):
             continue
         style = {"hook": "Hook", "label": "Label", "title": "Title"}.get(ov.get("style", "hook"), "Hook")
         default_pos = {"Hook": "top", "Label": "top-left", "Title": "middle"}[style]
-        al, mv = POS.get(ov.get("position", default_pos), POS[default_pos])
+        al, mv = pos.get(ov.get("position", default_pos), pos[default_pos])
         fi, fo = int(ov.get("fade_in", 80)), int(ov.get("fade_out", 120))
         text = clean(ov["text"], ov.get("uppercase", False), True).replace("\n", "\\N")
         layer = 2 if style == "Label" else 1  # separate layers: libass never shifts one to avoid the other
@@ -144,15 +151,17 @@ def overlay_events(overlays, c):
     return ev
 
 
-def build(words, cfg, overlays, out_ass: Path, out_srt: Path | None, root=None):
-    c = {**DEFAULTS, **{k: v for k, v in (cfg or {}).items() if v is not None}}
+def build(words, cfg, overlays, out_ass: Path, out_srt: Path | None, root=None, canvas=None):
+    cv = canvas or common.canvas_for(root=root)
+    c = {**DEFAULTS, "size": cv["caption_size"], "hook_size": cv["hook_size"],
+         **{k: v for k, v in (cfg or {}).items() if v is not None}}
     if not common.font_available(c["font"], root):
         common.log(f"note: font '{c['font']}' is not in P/assets/fonts/, P/assets/brand/ or the bundled fonts; "
                    "libass falls back to another font unless it is installed system-wide")
     ev, srt = caption_events(words, c) if c.get("enabled", True) else ([], [])
-    ev += overlay_events(overlays, c)
+    ev += overlay_events(overlays, c, cv)
     out_ass.parent.mkdir(parents=True, exist_ok=True)
-    out_ass.write_text(header(c) + "\n".join(ev) + "\n", encoding="utf-8")
+    out_ass.write_text(header(c, cv) + "\n".join(ev) + "\n", encoding="utf-8")
     if out_srt and srt:
         out_srt.write_text("\n".join(f"{i}\n{common.srt_time(s)} --> {common.srt_time(e)}\n{t}\n"
                                      for i, (s, e, t) in enumerate(srt, 1)), encoding="utf-8")
@@ -162,6 +171,7 @@ def build(words, cfg, overlays, out_ass: Path, out_srt: Path | None, root=None):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--spec")
+    ap.add_argument("--canvas", help="aspect ratio or WxH (9:16 default, 16:9, 1:1; overrides spec/project)")
     ap.add_argument("--words", help="words.json (default spec voiceover.words)")
     ap.add_argument("--out", help="output .ass (default captions/<vid>.ass)")
     ap.add_argument("--srt", help="output .srt (default next to .ass)")
@@ -175,6 +185,7 @@ def main():
     a = ap.parse_args()
 
     spec = common.Spec(a.spec) if a.spec else None
+    cv = common.canvas_for(spec=spec, aspect=a.canvas)
     cfg = dict((spec.data.get("captions") or {}) if spec else {})
     cfg.update({k: getattr(a, k) for k in DEFAULTS if getattr(a, k) is not None})
     overlays = list((spec.data.get("overlays") or []) if spec else [])
@@ -189,7 +200,7 @@ def main():
                    "(run audio.py transcribe/align first for spoken captions)")
     out = Path(a.out) if a.out else (spec.root / "captions" / f"{spec.vid}.ass" if spec else Path("captions.ass"))
     srt = Path(a.srt) if a.srt else out.with_suffix(".srt")
-    n_ev, n_srt = build(words, cfg, overlays, out, srt, spec.root if spec else None)
+    n_ev, n_srt = build(words, cfg, overlays, out, srt, spec.root if spec else None, canvas=cv)
     print(f"{out}  ({n_ev} events)" + (f"  + {srt} ({n_srt} cues)" if n_srt else ""))
     if spec:
         spec.reload()

@@ -15,12 +15,12 @@ One JSON per video (`briefs/vNN.json`, start from `briefs/_example_spec.json`). 
 to the project root. Scripts write back `candidates`, `selected`, `file`, `words`.
 | Field | Meaning |
 |---|---|
-| `id`, `title`, `status`, `target_duration_s`, `budget_usd`, `platforms` | identity, target length, per-video video-gen budget (enforced by `video.py run`) |
+| `id`, `title`, `status`, `canvas` / `aspect_ratio`, `target_duration_s`, `budget_usd`, `platforms` | identity, canvas (`9:16` 1080×1920 default, `16:9` 1920×1080, `1:1` 1080×1080; also settable in `project.json`), target length, per-video video-gen budget |
 | `concept{objective, pillar, format, series, awareness_level, angle, hook{text,vo,visual}, beats[], cta, stepps{}, send_test}` | the creative brief (documentation + packaging) |
 | `product_descriptor` | canonical product bible descriptor, reused in prompts |
-| `shots[].keyframe{mode, model, inputs[], prompt, aspect_ratio, resolution, quality, n, seed, lock_product, extra, candidates[], selected}` | `mode`: `multi-edit` (scene + cutout), `edit` (one real photo), `generate` (product-free), `frame` (fit a real photo to 9:16, free), `file` (use as-is) |
+| `shots[].keyframe{mode, model, inputs[], prompt, aspect_ratio, resolution, quality, n, seed, lock_product, extra, candidates[], selected}` | `mode`: `multi-edit` (scene + cutout), `edit` (one real photo), `generate` (product-free), `frame` (fit a real photo to the canvas, free), `file` (use as-is) |
 | `shots[].video{model, prompt, negative_prompt, duration, resolution, aspect_ratio, audio, image, end_image, takes, extra, candidates[], selected}` | `image` defaults to `keyframe.selected`; `extra` passes new API fields (e.g. `elements`, `bitrate_mode`) |
-| `shots[].edit{in, out, speed, zoom, hflip, transition{type,duration}, clip_audio_volume}` | how the clip is cut into the edit (§3) |
+| `shots[].edit{in, out, speed, zoom, hflip, transition{type,duration}, clip_audio_volume, keep_slow_audio}` | how the clip is cut into the edit (§3); `speed < 1` mutes clip audio by default unless `keep_slow_audio: true` |
 | `shots[].clip` | use an existing file instead of a generated take (real footage!) |
 | `voiceover{enabled, model, voice, speed, offset, volume, script, file, words}` | TTS + timing |
 | `music{file, volume, start, duck, fade_out, generate{model, prompt, duration_seconds, force_instrumental}}` | generated (`audio.py music`) or licensed track; ducked under VO |
@@ -35,28 +35,35 @@ to the project root. Scripts write back `candidates`, `selected`, `file`, `words
 Models may be aliases (`@i2v`, `@keyframe`, `@i2v_audio`, `@scene`, `@tts`) set with `models.py choose`.
 
 ## 2. What assemble.py does
-1. Normalises every selected take to 1080×1920, 30 fps, yuv420p (cover-crop), applying trim, speed,
-   zoom and flip.
+1. Normalises every selected take to the spec/project canvas (`9:16` 1080×1920 default, `16:9` 1920×1080,
+   or `1:1` 1080×1080), 30 fps, yuv420p (cover-crop), applying trim, speed, zoom and flip. Slowed clips
+   (`speed < 1`) mute native clip audio by default so speech isn't time-stretched with `atempo`.
 2. Joins segments: concat for straight cuts, `xfade` for transitions (timebases normalised).
 3. Optional end card and seamless-loop tail.
 4. If the voice-over runs longer than the edit, holds the last frame (and warns — fix the edit).
 5. One high-quality encode with image overlays and burned ASS captions/hook text (project brand fonts,
-   then the bundled fonts).
-6. Builds the audio mix (VO + ducked music + SFX + optional native clip audio), two-pass loudnorm
-   to −14 LUFS / −1.5 dBTP, muxes; renders a `_nomusic` variant when music is set.
-7. Cover (clean frame + title) and a 3:4 grid-crop preview; `_render.json` with the timeline.
+   then the bundled fonts), positioned for the canvas's safe zones.
+6. Builds the audio mix (VO + ducked music + SFX + optional native clip audio), runs loudness
+   normalisation to −14 LUFS / −1.5 dBTP (checking pass-2 `normalization_type`: if `loudnorm` falls
+   back to dynamic mode, switches to constant gain + oversampled true-peak `alimiter`), muxes; renders
+   a `_nomusic` variant when music is set.
+7. Cover (clean frame + title) and, for `9:16`, a 3:4 grid-crop preview; `_render.json` with the
+   timeline, canvas and loudness path.
 `--draft` is a fast preview (`<vid>_draft.mp4`) — use it to check timing before the final render.
 
 ## 3. Edit grammar
 - **Trim:** `in`/`out` seconds within the take. Most AI takes have their best 2–3 s in the middle;
   cut the first 0.2–0.5 s (settling) and stop before late drift/morphing.
-- **Speed:** `speed: 1.1–1.3` tightens pacing; `0.5–0.8` for satisfying slow-motion payoffs.
+- **Speed:** `speed: 1.1–1.3` tightens pacing; `0.5–0.8` for satisfying slow-motion payoffs. When
+  `speed < 1`, native clip audio is muted by default to avoid `atempo` stutters on speech; set
+  `edit.keep_slow_audio: true` only for non-speech ambience.
 - **Zoom:** `"punch"` (static 1.12× crop — instant pattern interrupt), `"push"` (slow zoom-in),
   `"pull"` (slow zoom-out), or `{"type": "push", "amount": 0.06}`.
 - **Transitions** (into this shot): `{"type": "cut"}` default. Short-form favours cuts; use
   `slideleft`/`slideup`/`smoothleft` (0.12–0.2 s) as whip-like moves, `fade`/`fadeblack` for story
   beats, `zoomin` for reveals. Any FFmpeg `xfade` name works.
-- **End card:** a branded 1080×1920 PNG (logo + CTA) for 1–1.5 s. Skip it when looping.
+- **End card:** a branded PNG matching the canvas (e.g. 1080×1920 for 9:16, 1920×1080 for 16:9) for
+  1–1.5 s. Skip it when looping.
 - **Loop:** `loop: true` crossfades the end into the first frame. Best when the last shot was generated
   with `end_image` = the first keyframe.
 - **Real footage:** set `shots[].clip` to any real product video — real demos beat AI for credibility.
@@ -64,8 +71,9 @@ Models may be aliases (`@i2v`, `@keyframe`, `@i2v_audio`, `@scene`, `@tts`) set 
 ## 4. Captions & text overlays
 `captions.py --spec` turns `voiceover.words` into ASS + SRT. Styles: `highlight` (2–4 word chunks, the
 spoken word pops in the highlight colour — default), `karaoke` (fill), `single` (one big word),
-`plain`. Defaults: Anton 104 px, uppercase, white with black outline, highlight #FFE14D, lower
-position (bottom edge 680 px above the frame bottom, clear of TikTok/Reels UI).
+`plain`. Defaults scale to the canvas (`9:16`: Anton 104 px, bottom margin 680 px clear of TikTok/Reels
+UI; `16:9`: 68 px, bottom margin 110 px clear of YouTube/web scrub bars; `1:1`: 76 px), uppercase, white
+with black outline, highlight #FFE14D.
 Brand it: `primary`/`highlight` from the brand palette; `font` is a font family name. Put brand
 fonts (.ttf/.otf) in the project's `P/assets/fonts/` (font files in `P/assets/brand/` work too): captions,
 overlays and the cover use them first, then the bundled fonts (Anton, Montserrat ExtraBold, both SIL OFL
@@ -73,17 +81,34 @@ in the skill's `assets/fonts/`), then fonts installed system-wide. Check the fon
 Text overlays: `hook` (boxed, top, first ~2.5 s), `label` (small, top-left — e.g. "AI-generated"),
 `title`; positions `top|upper|middle|lower|top-left|top-right`. Emoji are stripped from burned text
 (libass can't render colour emoji) — keep emoji for post captions.
-Caption timing comes from `audio.py transcribe` (speech-to-text via Tokentide, aligned to the known script) or
-`audio.py align` (offline, silence-based). Check a few frames: words must match the audio.
+Caption timing comes from `audio.py transcribe` (defaults to `elevenlabs/scribe-v2`, falling back to
+`nvidia/parakeet-tdt-0.6b-v3` on `private` keys, with a post-transcription check that long silences
+≥ 300 ms fall between words) or `audio.py align` (offline, silence-based). Check a few frames: words
+must match the audio.
 
 ## 5. Audio mix
+- **Never time-stretch speech (`atempo` or any audio tempo change):** FFmpeg `atempo` duplicates
+  consonant/syllable attacks and introduces audible stutters/catches. If the voice is too fast:
+  shorten the script, pick a model with a native `speed` parameter, or lengthen only the take's own
+  silent pauses with `audio.py pace --spec briefs/vNN.json --target-wps 2.4` (detects runs ≤ −60 dBFS
+  lasting ≥ 120 ms next to punctuation, inserts silence with 8 ms fades inside the silence, keeps every
+  voiced stretch sample-identical to the TTS output, and shifts `voiceover.words`).
+- **Snap every cut in speech to real silence:** whenever splitting or trimming a voice-over (per scene
+  or paragraph), use `audio.py split` / `audio.py trim` (or `audio.cut_speech` / `audio.trim_speech`).
+  Never cut at ASR timestamps alone: every cut must sit inside a detected silent run (at its middle, or
+  ~100 ms from the speech edge) and abort if any piece's first or last 15 ms exceed −50 dBFS.
 - VO at 1.0, music 0.2–0.3 with sidechain ducking under the VO, SFX 0.5–0.9, native clip audio
   0.3–0.5 (`keep_clip_audio`). Everything is resampled to 48 kHz stereo.
 - Music: generate an original track (`music.generate` + `audio.py music --spec`) sized to the video
   length + 2 s, or use a track the user has the rights to. Prompt with genre, mood, tempo (bpm),
   instruments and energy curve (e.g. "minimal electronic, bright plucks, 110 bpm, builds at 6 s,
-  instrumental"). For TikTok/Reels library sounds, post the `_nomusic` file and add the sound in-app.
-- Loudness: two-pass `loudnorm` to −14 LUFS integrated, −1.5 dBTP, LRA 11 (change in `audio_mix`).
+  instrumental"). `audio.py music` / `sfx` build the request from `model_spec` (omitting `duration_seconds`
+  or `force_instrumental` for models that reject them, and clamping/snapping duration). For TikTok/Reels
+  library sounds, post the `_nomusic` file and add the sound in-app.
+- **Loudness:** two-pass `loudnorm` to −14 LUFS integrated, −1.5 dBTP, LRA 11 (change in `audio_mix`).
+  `assemble.py` and `audio.py normalize` inspect pass-2 `normalization_type`: if `loudnorm` silently
+  falls back to `"dynamic"` (which causes speech to "breathe" on peaky TTS takes), they switch to a
+  fixed `volume=<gain>dB` plus an oversampled true-peak `alimiter` and print which path was used.
 
 ## 6. Outputs and export settings
 H.264 High, CRF 18 (slow preset), maxrate 12 Mbps, GOP 2 s, yuv420p, 30 fps, AAC 192 kbps 48 kHz,

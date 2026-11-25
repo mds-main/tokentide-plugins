@@ -1,4 +1,4 @@
-# viral-product-video — agent skill (Tokentide plugin)
+# professional-video — agent skill (Tokentide plugin)
 
 Researches a product or brand in depth, builds a virality strategy, and produces finished vertical
 videos for TikTok, Instagram Reels and X through the Tokentide API (a Venice-compatible API) + FFmpeg.

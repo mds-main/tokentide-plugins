@@ -1,4 +1,4 @@
-"""Shared helpers for the viral-product-video scripts (Python stdlib only).
+"""Shared helpers for the professional-video scripts (Python stdlib only).
 
 Paths inside a video spec are relative to the project root (the folder holding
 project.json), so specs stay portable.
@@ -18,7 +18,108 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 FONTS_DIR = SKILL_DIR / "assets" / "fonts"   # bundled fonts (SIL OFL)
 TEMPLATES_DIR = SKILL_DIR / "templates"
 
-W, H, FPS = 1080, 1920, 30  # vertical master for TikTok, Reels and X
+W, H, FPS = 1080, 1920, 30  # default vertical master (9:16) for TikTok, Reels and X
+
+# Aspect-ratio canvas presets: dimensions, frame rate, safe zones, caption and overlay geometry.
+CANVASES = {
+    "9:16": {
+        "aspect": "9:16", "w": 1080, "h": 1920, "fps": 30,
+        # conservative union of TikTok/Reels overlays
+        "safe": {"top": 250, "bottom": 650, "left": 60, "right": 150, "action_y": 560},
+        "grid_box": (0, 285, 1080, 1350),  # 4:5 grid-safe preview box
+        "cover_grid_crop": "1080:1440",    # 3:4 profile grid crop
+        "caption_size": 104, "hook_size": 84, "label_size": 42, "title_size": 112,
+        "caption_margins": (90, 150),
+        "caption_pos": {"top": (8, 340), "upper": (8, 560), "middle": (5, 0),
+                        "lower": (2, 680), "bottom": (2, 660), "top-left": (7, 262), "top-right": (9, 262)},
+        "overlay_pos": {"top-right": ("W-w-150", "260"), "top-left": ("60", "260"),
+                        "top-center": ("(W-w)/2", "260"), "center": ("(W-w)/2", "(H-h)/2"),
+                        "lower-third": ("(W-w)/2", "H-h-700"), "bottom-center": ("(W-w)/2", "H-h-680")},
+    },
+    "16:9": {
+        "aspect": "16:9", "w": 1920, "h": 1080, "fps": 30,
+        # YouTube, website and onboarding player margins (title-safe + bottom scrub bar)
+        "safe": {"top": 60, "bottom": 140, "left": 96, "right": 96, "action_y": None},
+        "grid_box": None,
+        "cover_grid_crop": None,
+        "caption_size": 68, "hook_size": 72, "label_size": 32, "title_size": 92,
+        "caption_margins": (120, 120),
+        "caption_pos": {"top": (8, 70), "upper": (8, 180), "middle": (5, 0),
+                        "lower": (2, 110), "bottom": (2, 90), "top-left": (7, 64), "top-right": (9, 64)},
+        "overlay_pos": {"top-right": ("W-w-96", "60"), "top-left": ("96", "60"),
+                        "top-center": ("(W-w)/2", "60"), "center": ("(W-w)/2", "(H-h)/2"),
+                        "lower-third": ("(W-w)/2", "H-h-180"), "bottom-center": ("(W-w)/2", "H-h-140")},
+    },
+    "1:1": {
+        "aspect": "1:1", "w": 1080, "h": 1080, "fps": 30,
+        # Square feed margins
+        "safe": {"top": 80, "bottom": 160, "left": 80, "right": 80, "action_y": None},
+        "grid_box": None,
+        "cover_grid_crop": None,
+        "caption_size": 76, "hook_size": 68, "label_size": 36, "title_size": 88,
+        "caption_margins": (80, 80),
+        "caption_pos": {"top": (8, 90), "upper": (8, 220), "middle": (5, 0),
+                        "lower": (2, 140), "bottom": (2, 110), "top-left": (7, 84), "top-right": (9, 84)},
+        "overlay_pos": {"top-right": ("W-w-80", "80"), "top-left": ("80", "80"),
+                        "top-center": ("(W-w)/2", "80"), "center": ("(W-w)/2", "(H-h)/2"),
+                        "lower-third": ("(W-w)/2", "H-h-190"), "bottom-center": ("(W-w)/2", "H-h-150")},
+    },
+}
+
+
+def nearest_canvas_aspect(w: int, h: int) -> str:
+    if not w or not h:
+        return "9:16"
+    r = w / h
+    if r > 1.2:
+        return "16:9"
+    if r < 0.85:
+        return "9:16"
+    return "1:1"
+
+
+def canvas_for(spec=None, root=None, aspect=None) -> dict:
+    """Resolve canvas settings (w, h, fps, safe zones, caption/overlay geometry).
+
+    Precedence: explicit `aspect` > spec.canvas / spec.aspect_ratio > project.json canvas / aspect_ratio > 9:16.
+    Accepts '9:16', '16:9', '1:1', 'WxH', or a dict {'aspect_ratio', 'width', 'height', 'fps'}.
+    """
+    raw = aspect
+    if raw is None and spec is not None:
+        sdata = spec.data if isinstance(spec, Spec) else (spec if isinstance(spec, dict) else {})
+        sroot = root or (spec.root if isinstance(spec, Spec) else None)
+        raw = sdata.get("canvas") or sdata.get("aspect_ratio")
+        if raw is None and sroot:
+            meta = project_meta(sroot)
+            raw = meta.get("canvas") or meta.get("aspect_ratio")
+    elif raw is None and root is not None:
+        meta = project_meta(root)
+        raw = meta.get("canvas") or meta.get("aspect_ratio")
+    if not raw:
+        return dict(CANVASES["9:16"])
+    if isinstance(raw, dict):
+        ar = str(raw.get("aspect_ratio") or raw.get("aspect") or "").strip()
+        w, h = raw.get("width") or raw.get("w"), raw.get("height") or raw.get("h")
+        if ar not in CANVASES:
+            ar = nearest_canvas_aspect(int(w or 0), int(h or 0))
+        cv = dict(CANVASES[ar])
+        if w:
+            cv["w"] = int(w)
+        if h:
+            cv["h"] = int(h)
+        if raw.get("fps"):
+            cv["fps"] = int(raw["fps"])
+        return cv
+    s = str(raw).strip()
+    if s in CANVASES:
+        return dict(CANVASES[s])
+    m = re.fullmatch(r"(\d+)\s*[xX]\s*(\d+)", s)
+    if m:
+        w, h = int(m.group(1)), int(m.group(2))
+        cv = dict(CANVASES[nearest_canvas_aspect(w, h)])
+        cv["w"], cv["h"] = w, h
+        return cv
+    die(f"Unsupported canvas '{raw}' (use 9:16, 16:9, 1:1 or WxH)")
 
 
 # ---------------------------------------------------------------- basics
@@ -311,6 +412,59 @@ def spec_lookup(entry, *needles) -> dict:
     flat = flatten((entry or {}).get("model_spec", entry or {}))
     norm = [n.lower().replace("_", "") for n in needles]
     return {k: v for k, v in flat.items() if any(n in k.lower().replace("_", "") for n in norm)}
+
+
+def audio_duration_for(entry, wanted):
+    """Valid integer `duration_seconds` for a queued audio model from its `model_spec`, or None when the model
+    does not accept `duration_seconds` (e.g. flat per-generation song models like MiniMax Music / Lyria).
+    Snaps to `duration_options` or discrete `pricing.durations`, and clamps to `[min_duration, max_duration]`."""
+    if not entry:
+        return int(round(float(wanted))) if wanted is not None else None
+    ms = entry.get("model_spec") or {}
+    pr = ms.get("pricing") or {}
+    has_meta = bool(pr or any(k.startswith("supports_") for k in ms) or
+                    any(k in ms for k in ("min_duration", "max_duration", "default_duration", "duration_options")))
+    if not has_meta:  # sparse catalog entry without capability metadata
+        return int(round(float(wanted))) if wanted is not None else None
+    opts = ms.get("duration_options")
+    dmap = pr.get("durations") if isinstance(pr.get("durations"), dict) else None
+    mn, mx, dft = ms.get("min_duration"), ms.get("max_duration"), ms.get("default_duration")
+    supports_dur = bool(opts or dmap or mn is not None or mx is not None or dft is not None or pr.get("per_second"))
+    if not supports_dur:
+        return None
+    val = float(wanted) if wanted is not None else (float(dft) if dft is not None else None)
+    if val is None:
+        return None
+    if isinstance(opts, list) and opts:
+        nums = sorted(int(round(float(x))) for x in opts)
+        return next((x for x in nums if x >= val), nums[-1])
+    if dmap:
+        buckets = [v for v in dmap.values() if isinstance(v, dict)]
+        if buckets and all(b.get("min_seconds") is not None and b.get("min_seconds") == b.get("max_seconds") for b in buckets):
+            nums = sorted(int(round(float(b["min_seconds"]))) for b in buckets)
+            return next((x for x in nums if x >= val), nums[-1])
+        if mn is None:
+            mins = [float(b["min_seconds"]) for b in buckets if b.get("min_seconds") is not None]
+            mn = min(mins) if mins else None
+        if mx is None:
+            maxs = [float(b["max_seconds"]) for b in buckets if b.get("max_seconds") is not None]
+            mx = max(maxs) if maxs else None
+    res = int(round(val))
+    if mn is not None:
+        res = max(int(round(float(mn))), res)
+    if mx is not None:
+        res = min(int(round(float(mx))), res)
+    return res
+
+
+def audio_supports_instrumental(entry) -> bool:
+    """True when a queued music model accepts `force_instrumental` (from `model_spec.supports_force_instrumental`)."""
+    if not entry:
+        return True
+    ms = entry.get("model_spec") or {}
+    if "supports_force_instrumental" in ms:
+        return bool(ms["supports_force_instrumental"])
+    return not any(k.startswith("supports_") for k in ms)
 
 
 # ---------------------------------------------------------------- ffmpeg

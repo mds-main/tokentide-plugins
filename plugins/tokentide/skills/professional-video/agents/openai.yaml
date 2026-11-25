@@ -1,8 +1,8 @@
 interface:
-  display_name: "Viral product video"
-  short_description: "Research a product and make short-form videos for TikTok, Reels and X"
+  display_name: "Professional video"
+  short_description: "Research a product and make professional videos for YouTube, TikTok, Reels and X"
   brand_color: "#00848B"
-  default_prompt: "Research our product and make short-form vertical videos for TikTok, Instagram Reels and X with Tokentide."
+  default_prompt: "Research our product and make professional videos for YouTube, TikTok, Instagram Reels and X with Tokentide."
 
 dependencies:
   tools:

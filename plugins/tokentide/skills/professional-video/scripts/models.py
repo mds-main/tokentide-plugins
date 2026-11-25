@@ -482,7 +482,7 @@ def _arena_get(url, attempts=4):
     last = None
     for i in range(attempts):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "tokentide-viral-product-video",
+            req = urllib.request.Request(url, headers={"User-Agent": "tokentide-professional-video",
                                                        "Accept": "application/json"})
             with common.urlopen(req, timeout=30) as r:
                 return json.loads(r.read().decode("utf-8"))
@@ -752,7 +752,10 @@ def quote_all(items, job, dur, res, music_s=30, sfx_s=3):
 
     def q(d):
         if JOBS[job][0] == "music":
-            body = {"model": d["id"], "duration_seconds": music_s if job == "music" else sfx_s}
+            body = {"model": d["id"]}
+            sec = common.audio_duration_for(d.get("_m"), music_s if job == "music" else sfx_s)
+            if sec is not None:
+                body["duration_seconds"] = sec
             kind = "audio"
         else:
             body, kind = standard_body(d, job, dur, res), "video"
@@ -760,8 +763,8 @@ def quote_all(items, job, dur, res, music_s=30, sfx_s=3):
             r = video.quote(body, kind)
             d["price"], d["list_price"], d["multiplier"] = r.get("usd"), r.get("list_usd"), r.get("multiplier")
             d["queue_open"] = r.get("queue_open")
-            d["quoted"] = {"duration": body.get("duration") or f"{body.get('duration_seconds')}s",
-                           "resolution": body.get("resolution", ""), "audio": body.get("audio")}
+            q_dur = body.get("duration") or (f"{body['duration_seconds']}s" if "duration_seconds" in body else "track")
+            d["quoted"] = {"duration": q_dur, "resolution": body.get("resolution", ""), "audio": body.get("audio")}
         except (api.APIError, ValueError, TypeError) as e:
             d["price"], d["quote_error"] = None, str(e)[:120]
         p = d.get("price") or d.get("list_price")  # free-use accounts are quoted $0: rank them on the list price
@@ -978,7 +981,9 @@ class Pricer:
     def audio(self, mid, seconds=None, chars=None):
         body = {"model": mid}
         if seconds:
-            body["duration_seconds"] = int(seconds)
+            sec = common.audio_duration_for(self.models.get(mid), seconds)
+            if sec is not None:
+                body["duration_seconds"] = sec
         if chars:
             body["character_count"] = int(chars)
         usd, lst, basis, note = self._quote(body, "audio")

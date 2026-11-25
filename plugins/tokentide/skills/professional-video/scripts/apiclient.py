@@ -172,7 +172,8 @@ def key_source():
     if os.environ.get("TOKENTIDE_API_KEY_FILE"):
         cands.append(Path(os.environ["TOKENTIDE_API_KEY_FILE"]).expanduser())
     legacy = Path.home() / ".config" / "tokentide" / "api_key"
-    cands += [key_file()] + ([legacy] if legacy != key_file() else []) + [Path.cwd() / ".tokentide_api_key"]
+    use_legacy = not os.environ.get("TOKENTIDE_CONFIG_DIR") and legacy != key_file()
+    cands += [key_file()] + ([legacy] if use_legacy else []) + [Path.cwd() / ".tokentide_api_key"]
     for c in cands:
         key = _read_key_file(c)
         if key:

@@ -1,13 +1,13 @@
 ---
-name: viral-product-video
-description: Researches any product or brand in depth (positioning, proof, customer reviews and language, competitors, ads, trends), turns it into a virality strategy (hero moments, angles, hook bank, series, calendar), then plans, generates, edits, quality-checks and packages short-form vertical videos for TikTok, Instagram Reels and X through the Tokentide API, a Venice-compatible API (the user names the models or picks a recommended level, Essential, Pro or Max, with the total price up front; product-accurate keyframes, image-to-video, original music and sound effects, voice-over, transcription) plus FFmpeg (captions, audio mix, export). Use it whenever the user wants to promote, launch, market, grow an account for, or go viral with a product, app, service or brand on social media, or asks for TikToks, Reels, Shorts-style or X videos, AI video ads, UGC-style content, hooks, scripts or a short-form content plan. Works in any language.
+name: professional-video
+description: Researches any product or brand in depth (positioning, proof, customer reviews and language, competitors, ads, trends), turns it into a virality strategy (hero moments, angles, hook bank, series, calendar), then plans, generates, edits, quality-checks and packages professional videos for YouTube, TikTok, Instagram Reels and X through the Tokentide API, a Venice-compatible API (the user names the models or picks a recommended level, Essential, Pro or Max, with the total price up front; product-accurate keyframes, image-to-video, original music and sound effects, voice-over, transcription) plus FFmpeg (captions, audio mix, export). Use it whenever the user wants to promote, launch, market, grow an account for, or go viral with a product, app, service or brand on social media, or asks for YouTube videos, TikToks, Reels, Shorts or X videos, AI video ads, UGC-style content, hooks, scripts or a video content plan. Works in any language.
 license: Proprietary (Tokentide Plugin License, see LICENSE in the plugin root). Use only with the Tokentide service.
 compatibility: The full pipeline needs a shell with Python 3.8+ and network access to api.tokentide.app, plus datasets-server.huggingface.co for model ratings (Claude Code, Codex, or a Claude/ChatGPT code environment that allows the domain) plus web search. The scripts link their own key through the Tokentide connector and install FFmpeg themselves, so the user only signs in once. Without a shell, the connector's image, video and music tools cover research, strategy and generation.
 metadata:
   internal: true
 ---
 
-# Viral Product Video Studio (Tokentide)
+# Professional Video Studio (Tokentide)
 
 Turns a product into (1) a deep, evidence-based understanding of the product, its buyers and its
 market, (2) a strategy for what will spread and why, and (3) finished, platform-ready vertical
@@ -227,28 +227,37 @@ references/prompting.md).
    Alt premium model). 422 = rephrase; 409 = faces on Seedance → other family.
 
 ## Phase 8 — Voice-over and word timings
-- `audio.py tts --spec P/briefs/vNN.json` → `P/audio/vNN_vo.mp3`; it prints words/second (aim 2.3–3.0).
-  Choose a voice matching brand and language (`audio.py voices`; a voice the model doesn't offer falls back to
-  its default). Never pick ElevenLabs TTS v4 by default: use ElevenLabs TTS v4 Turbo (`elevenlabs-tts-v4-turbo`;
-  the scripts never offer v4), and v4 only if the user explicitly asks for that exact model. Voice models on
-  Tokentide's queued audio route (e.g. ElevenLabs TTS v4 Turbo) run as a short job:
-  the script quotes, queues and waits; never re-run it for the same take (that pays twice).
-- `audio.py transcribe --spec P/briefs/vNN.json` → word timings aligned to the script (exact spelling);
-  offline fallback: `audio.py align --spec P/briefs/vNN.json`.
+- `audio.py tts --spec P/briefs/vNN.json` → `P/audio/vNN_vo.mp3`; it prints words/second (aim 2.3–3.0) and
+  notes when a model lacks native speed control. Choose a voice matching brand and language (`audio.py voices`;
+  models with `supports_custom_voice_id` also accept raw provider Voice IDs). Never pick ElevenLabs TTS v4 by
+  default: use ElevenLabs TTS v4 Turbo (`elevenlabs-tts-v4-turbo`; the scripts never offer v4), and v4 only if
+  the user explicitly asks for that exact model. Voice models on Tokentide's queued audio route run as a short
+  job: the script quotes, queues and waits; never re-run it for the same take (that pays twice).
+- **Never time-stretch speech (`atempo` or any audio tempo change):** stretching duplicates consonant/syllable
+  attacks and causes audible stutters. If the voice is too fast: shorten the script, use a model with a native
+  speed parameter, or lengthen only the silent pauses with `audio.py pace --spec P/briefs/vNN.json --target-wps 2.4`
+  (keeps every voiced stretch sample-identical and shifts `voiceover.words`).
+- `audio.py transcribe --spec P/briefs/vNN.json` → word timings aligned to the script (defaults to
+  `elevenlabs/scribe-v2`, falling back to `nvidia/parakeet-tdt-0.6b-v3` on `private` keys, and warns if long
+  silences ≥ 300 ms don't fall between words); offline fallback: `audio.py align --spec P/briefs/vNN.json`.
+  Any split or trim of speech must snap to real silence (`audio.py split` / `trim`) — never cut at ASR times alone.
 - **Music (rights-safe):** generate an original track — add `music.generate {"model": "@music",
   "prompt": "<genre, mood, bpm, instruments>", "duration_seconds": <video length + 2>, "force_instrumental": true}`
-  to the spec and run `audio.py music --spec P/briefs/vNN.json` (quote → queue → collect; sets `music.file`).
-  Or use a track the user has rights to. For TikTok/Reels library sounds, post the `_nomusic` render.
+  to the spec and run `audio.py music --spec P/briefs/vNN.json` (unsupported fields are omitted automatically from
+  `model_spec`; quote → queue → collect; sets `music.file`). Or use a track the user has rights to. For
+  TikTok/Reels library sounds, post the `_nomusic` render.
 - **SFX:** `sfx[].generate {"model": "@sfx", "prompt": "short airy whoosh", "duration_seconds": 1}` →
   `audio.py sfx --spec P/briefs/vNN.json`. Music and SFX models are Anonymized (key mode `all`).
 - Voice cloning isn't offered through Tokentide; use a stock voice or a real recorded voice-over.
 
 ## Phase 9 — Captions and assembly
 1. `captions.py --spec P/briefs/vNN.json` → burned-caption ASS (+ SRT) with word highlight, hook text
-   and labels (brand colours via `captions.primary/highlight`).
+   and labels (brand colours via `captions.primary/highlight`), sized to the spec's canvas (`9:16` default,
+   `16:9` or `1:1`).
 2. `assemble.py --spec P/briefs/vNN.json --draft` to check timing, then `assemble.py --spec P/briefs/vNN.json`
-   → `P/renders/vNN_master.mp4` (1080×1920, 30 fps, −14 LUFS), `_nomusic.mp4` when music is set, cover +
-   grid preview. Edit grammar (trim, speed, zoom, transitions, end card, loop): references/post-production.md §3.
+   → `P/renders/vNN_master.mp4` (1080×1920 for `9:16`, 1920×1080 for `16:9`, 1080×1080 for `1:1`; 30 fps,
+   −14 LUFS via linear loudnorm or constant gain + true-peak limiter), `_nomusic.mp4` when music is set,
+   cover (+ 3:4 grid preview for `9:16`). Edit grammar: references/post-production.md §3.
 
 ## Phase 10 — Final QA (gate)
 1. `qa.py check P/renders/vNN_master.mp4 --spec P/briefs/vNN.json` — no FAIL allowed.

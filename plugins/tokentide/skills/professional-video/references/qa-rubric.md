@@ -31,9 +31,10 @@ A take is usable if it has a clean 2–4 s window — set `edit.in/out` around i
 `video.py select --shot sN --take K`.
 
 ## 3. Final render checks
-1. `qa.py check renders/<vid>_master.mp4 --spec briefs/<vid>.json` → no FAIL: 1080×1920, 30 fps,
-   H.264/yuv420p, audio present, duration near target, no black frames at the start, loudness
-   −14 ± 2 LUFS, true peak ≤ −1 dBTP. Frozen-frame warnings: look at that span.
+1. `qa.py check renders/<vid>_master.mp4 --spec briefs/<vid>.json` → no FAIL: matches the spec's canvas
+   (`1080×1920` for 9:16, `1920×1080` for 16:9, `1080×1080` for 1:1), 30 fps, H.264/yuv420p, audio present,
+   duration near target, no black frames at the start, loudness within ±2 LU of target (default −14 LUFS),
+   true peak ≤ −1 dBTP. Frozen-frame warnings: look at that span.
 2. `qa.py frames … --every 1` → watch the story in the sheet: hook visible at 0.3 s, payoff by ~70%,
    CTA, captions matching speech, logo/label placement.
 3. `qa.py safezone … --t 1.0` (and a frame with the CTA) → no text or logo in red/orange zones.

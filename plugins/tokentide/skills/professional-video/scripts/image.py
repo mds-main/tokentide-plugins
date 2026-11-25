@@ -293,7 +293,7 @@ def keyframe_jobs(spec, shot, n):
     mode = kf.get("mode", "multi-edit")
     model = common.resolve_model(spec.root, kf.get("model"))
     prompt = kf.get("prompt", "")
-    ar = kf.get("aspect_ratio", spec.data.get("aspect_ratio", "9:16"))
+    ar = kf.get("aspect_ratio") or common.canvas_for(spec=spec)["aspect"]
     inputs = [spec.p(x) for x in kf.get("inputs", [])]
     for x in inputs:
         if isinstance(x, Path) and not x.exists():
@@ -357,7 +357,8 @@ def cmd_keyframes(a):
                 common.die(f"{shot['id']}: mode '{mode}' needs inputs[0] (a real photo)")
             dst = kdir / f"{prefix}_k{next_index(kdir, prefix)}.png"
             if mode == "frame":
-                fit_frame(src, dst, kf.get("fit", "cover"), kf.get("bg", "#F4F1EC"))
+                cv = common.canvas_for(spec=spec)
+                fit_frame(src, dst, kf.get("fit", "cover"), kf.get("bg", "#F4F1EC"), kf.get("size") or f"{cv['w']}x{cv['h']}")
             else:
                 shutil.copy(src, dst.with_suffix(Path(src).suffix))
                 dst = dst.with_suffix(Path(src).suffix)

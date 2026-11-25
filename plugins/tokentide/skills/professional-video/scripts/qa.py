@@ -48,7 +48,11 @@ def make_sheet(images, out, cols=None, tile_w=360, labels=None):
     n = len(images)
     cols = cols or min(4, n)
     rows = math.ceil(n / cols)
-    tile_h = int(tile_w * 16 / 9)
+    first = common.probe(images[0])
+    if first.get("width") and first.get("height"):
+        tile_h = max(120, int(round(tile_w * first["height"] / first["width"] / 2)) * 2)
+    else:
+        tile_h = int(tile_w * 16 / 9)
     with tempfile.TemporaryDirectory() as td:
         tdp = Path(td)
         for i in range(cols * rows):
@@ -108,25 +112,38 @@ def cmd_sheet(a):
 def cmd_safezone(a):
     src = Path(a.file)
     out = Path(a.out) if a.out else src.with_name(src.stem + "_safezone.jpg")
+    spec = common.Spec(a.spec) if getattr(a, "spec", None) else None
+    if a.canvas or spec:
+        cv = common.canvas_for(spec=spec, aspect=a.canvas)
+    else:
+        info = common.probe(src)
+        cv = common.canvas_for(aspect=common.nearest_canvas_aspect(info.get("width") or 0, info.get("height") or 0))
+    w, h, u = cv["w"], cv["h"], cv["safe"]
     with tempfile.TemporaryDirectory() as td:
         frame = Path(td) / "f.png"
         if src.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
-            common.ffmpeg(["-y", "-i", src, "-vf", "scale=1080:1920", "-frames:v", "1", frame])
+            common.ffmpeg(["-y", "-i", src, "-vf", f"scale={w}:{h}", "-frames:v", "1", frame])
         else:
-            common.ffmpeg(["-y", "-ss", f"{a.t:.3f}", "-i", src, "-vf", "scale=1080:1920", "-frames:v", "1", frame])
-        u = UI
+            common.ffmpeg(["-y", "-ss", f"{a.t:.3f}", "-i", src, "-vf", f"scale={w}:{h}", "-frames:v", "1", frame])
         boxes = [
             f"drawbox=x=0:y=0:w=iw:h={u['top']}:color=red@0.30:t=fill",
             f"drawbox=x=0:y=ih-{u['bottom']}:w=iw:h={u['bottom']}:color=red@0.30:t=fill",
-            f"drawbox=x=iw-{u['right']}:y=560:w={u['right']}:h=ih-560-{u['bottom']}:color=orange@0.40:t=fill",
             f"drawbox=x=0:y={u['top']}:w={u['left']}:h=ih-{u['top']}-{u['bottom']}:color=yellow@0.25:t=fill",
-            f"drawbox=x={u['left']}:y={u['top']}:w=iw-{u['left']}-{u['right']}:h=ih-{u['top']}-{u['bottom']}:color=lime@0.9:t=4",
-            "drawbox=x=0:y=285:w=iw:h=1350:color=cyan@0.8:t=3",
         ]
+        if u.get("action_y") is not None:
+            ay = u["action_y"]
+            boxes.append(f"drawbox=x=iw-{u['right']}:y={ay}:w={u['right']}:h=ih-{ay}-{u['bottom']}:color=orange@0.40:t=fill")
+        else:
+            boxes.append(f"drawbox=x=iw-{u['right']}:y={u['top']}:w={u['right']}:h=ih-{u['top']}-{u['bottom']}:color=yellow@0.25:t=fill")
+        boxes.append(f"drawbox=x={u['left']}:y={u['top']}:w=iw-{u['left']}-{u['right']}:h=ih-{u['top']}-{u['bottom']}:color=lime@0.9:t=4")
+        if cv.get("grid_box"):
+            gx, gy, gw, gh = cv["grid_box"]
+            boxes.append(f"drawbox=x={gx}:y={gy}:w={gw}:h={gh}:color=cyan@0.8:t=3")
         out.parent.mkdir(parents=True, exist_ok=True)
         common.ffmpeg(["-y", "-i", frame, "-vf", ",".join(boxes), "-frames:v", "1", "-q:v", "3", out])
-    print(f"{out}\n  red = platform UI (keep text/logos out), orange = action buttons, yellow = edge margin,\n"
-          f"  green box = safe text area, cyan box = 4:5 / grid-safe region for covers")
+    extra = ", orange = action buttons, cyan box = 4:5 / grid-safe region for covers" if cv.get("grid_box") else ""
+    print(f"{out}  ({cv['aspect']} {w}x{h})\n"
+          f"  red = UI/player margins (keep text/logos out), yellow = edge margin, green box = safe text area{extra}")
 
 
 def detect(path):
@@ -149,26 +166,30 @@ def measure_loudness(path):
 def cmd_check(a):
     path = Path(a.file)
     info = common.probe(path)
+    root = common.find_project_root(path.resolve().parent)
+    spec = common.Spec(a.spec) if a.spec else None
+    cv = common.canvas_for(spec=spec, root=root, aspect=getattr(a, "canvas", None))
     res = []
 
     def add(level, what, detail):
         res.append({"level": level, "check": what, "detail": detail})
 
     w, h, d = info["width"], info["height"], info["duration"]
-    if (w, h) == (1080, 1920):
-        add("PASS", "resolution", "1080x1920")
-    elif w and h and abs(w / h - 9 / 16) < 0.01:
-        add("WARN", "resolution", f"{w}x{h} is 9:16 but not 1080x1920 — export the master at 1080x1920")
+    exp_w, exp_h, exp_ar = cv["w"], cv["h"], cv["aspect"]
+    if (w, h) == (exp_w, exp_h):
+        add("PASS", "resolution", f"{exp_w}x{exp_h} ({exp_ar})")
+    elif w and h and abs(w / h - exp_w / exp_h) < 0.015:
+        add("WARN", "resolution", f"{w}x{h} is {exp_ar} but not {exp_w}x{exp_h} — export the master at {exp_w}x{exp_h}")
     else:
-        add("FAIL", "resolution", f"{w}x{h} is not 9:16 vertical")
+        add("FAIL", "resolution", f"{w}x{h} is not {exp_ar} ({exp_w}x{exp_h})")
     fps = info["fps"] or 0
     add("PASS" if 23.9 <= fps <= 60.1 else "WARN", "fps", f"{fps}")
     add("PASS" if info["vcodec"] == "h264" and info["pix_fmt"] == "yuv420p" else "WARN", "codec",
         f"{info['vcodec']}/{info['pix_fmt']} (want h264/yuv420p)")
     add("PASS" if info["has_audio"] else "WARN", "audio", "present" if info["has_audio"] else "no audio track")
     target = a.target
-    if a.spec:
-        target = target or common.Spec(a.spec).data.get("target_duration_s")
+    if spec:
+        target = target or spec.data.get("target_duration_s")
     if target:
         tol = max(1.0, 0.15 * float(target))
         add("PASS" if abs(d - float(target)) <= tol else "WARN", "duration", f"{d:.2f}s vs target {target}s")
@@ -192,17 +213,21 @@ def cmd_check(a):
     if not freeze:
         add("PASS", "frozen frames", "none ≥1.5s")
     if info["has_audio"]:
+        mixcfg = (spec.data.get("audio_mix") or {}) if spec else {}
+        tgt_lufs = float(mixcfg.get("lufs", -14.0))
+        tgt_tp = float(mixcfg.get("true_peak", -1.5))
+        tp_max = max(tgt_tp + 0.5, -1.0) if tgt_tp <= -1.5 else tgt_tp + 0.5
         ln = measure_loudness(path)
         li, tp = common._f(ln.get("input_i"), -99), common._f(ln.get("input_tp"), 0)
         if li <= -70:
             add("WARN", "loudness", "silent audio track — fine only if you add a sound in-app before posting")
         else:
-            add("PASS" if -16 <= li <= -12 else "WARN", "loudness", f"{li} LUFS (target -14 ±2)")
-            add("PASS" if tp <= -1.0 else "WARN", "true peak", f"{tp} dBTP (≤ -1.0)")
+            add("PASS" if (tgt_lufs - 2.0) <= li <= (tgt_lufs + 2.0) else "WARN", "loudness",
+                f"{li} LUFS (target {tgt_lufs:g} ±2)")
+            add("PASS" if tp <= tp_max else "WARN", "true peak", f"{tp} dBTP (≤ {tp_max:g})")
     width = max(len(r["check"]) for r in res)
     for r in res:
         print(f"{r['level']:<5} {r['check']:<{width}}  {r['detail']}")
-    root = common.find_project_root(path.resolve().parent)
     if root:
         common.save_json(root / "qa" / f"{path.stem}_auto.json", {"file": str(path), "checks": res, "probe": info})
     fails = [r for r in res if r["level"] == "FAIL"]
@@ -277,6 +302,7 @@ def main():
     c = sub.add_parser("check")
     c.add_argument("file")
     c.add_argument("--spec")
+    c.add_argument("--canvas", help="expected aspect ratio or WxH (9:16, 16:9, 1:1; default from spec/project)")
     c.add_argument("--target", type=float, help="target duration (s)")
     f = sub.add_parser("frames")
     f.add_argument("file")
@@ -290,6 +316,8 @@ def main():
     s.add_argument("--cols", type=int)
     z = sub.add_parser("safezone")
     z.add_argument("file")
+    z.add_argument("--spec")
+    z.add_argument("--canvas", help="aspect ratio (9:16, 16:9, 1:1; default from spec or input dimensions)")
     z.add_argument("--t", type=float, default=1.0, help="time of the frame to inspect")
     z.add_argument("--out")
     v = sub.add_parser("vision")

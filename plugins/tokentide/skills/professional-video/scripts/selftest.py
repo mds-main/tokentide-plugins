@@ -128,15 +128,23 @@ MODELS = [
     {"id": "elevenlabs-tts-v4", "type": "music", "created": _ts("2026-09-29"), "tokentide": _tt("anonymized"),
      "model_spec": {"name": "ElevenLabs TTS v4", "privacy": "anonymized",
                     "pricing": {"per_thousand_characters": {"usd": 0.092}}, "prompt_character_limit": 5000,
-                    "voices": ["Aria", "Roger", "Sarah"], "default_voice": "Aria", "supports_custom_voice_id": False}},
+                    "voices": ["Aria", "Roger", "Sarah"], "default_voice": "Aria",
+                    "supports_custom_voice_id": True, "supports_speed": False}},
     {"id": "elevenlabs-tts-v4-turbo", "type": "music", "created": _ts("2026-09-29"), "tokentide": _tt("anonymized"),
      "model_spec": {"name": "ElevenLabs TTS v4 Turbo", "privacy": "anonymized",
                     "pricing": {"per_thousand_characters": {"usd": 0.046}}, "prompt_character_limit": 5000,
-                    "voices": ["Aria", "Roger", "Sarah"], "default_voice": "Aria", "supports_custom_voice_id": False}},
+                    "voices": ["Aria", "Roger", "Sarah"], "default_voice": "Aria",
+                    "supports_custom_voice_id": True, "supports_speed": False}},
     {"id": "elevenlabs-music", "type": "music", "created": _ts("2026-06-01"), "tokentide": _tt("anonymized"),
-     "model_spec": {"name": "ElevenLabs Music", "privacy": "anonymized"}},
+     "model_spec": {"name": "ElevenLabs Music", "privacy": "anonymized",
+                    "supports_force_instrumental": True, "min_duration": 3, "max_duration": 600, "default_duration": 60}},
     {"id": "elevenlabs-sound-effects", "type": "music", "created": _ts("2026-06-01"), "tokentide": _tt("anonymized"),
-     "model_spec": {"name": "ElevenLabs Sound Effects", "privacy": "anonymized"}},
+     "model_spec": {"name": "ElevenLabs Sound Effects", "privacy": "anonymized",
+                    "supports_force_instrumental": False, "min_duration": 1, "max_duration": 22, "default_duration": 7}},
+    {"id": "elevenlabs/scribe-v2", "type": "asr", "created": _ts("2026-05-01"), "tokentide": _tt("anonymized"),
+     "model_spec": {"name": "ElevenLabs Scribe V2", "privacy": "anonymized"}},
+    {"id": "nvidia/parakeet-tdt-0.6b-v3", "type": "asr", "created": _ts("2025-11-01"), "tokentide": _tt("private"),
+     "model_spec": {"name": "Parakeet ASR", "privacy": "private"}},
     {"id": "mock-vision", "type": "text", "tokentide": _tt("private"),
      "model_spec": {"privacy": "private", "capabilities": {"supportsVision": True}}},
 ]
@@ -434,11 +442,27 @@ class Mock(BaseHTTPRequestHandler):
             if fmt and fmt.group(1) not in (b"json", b"text"):
                 return self._err(400, "invalid_request", 'response_format must be "json" or "text"',
                                  param="response_format")
+            mod = re.search(rb'name="model"\r\n\r\n([^\r]*)\r\n', raw)
+            mod_s = mod.group(1).decode("utf-8", "replace") if mod else ""
+            if mod_s == "elevenlabs/scribe-v2" and STATE.get("block_scribe"):
+                return self._err(403, "model_not_allowed", "Key privacy mode 'private' hides elevenlabs/scribe-v2")
             words = "Stop scrolling this bottle keeps water ice cold for a full day".split()
-            out, t = [], 0.2
-            for w in words:
-                out.append({"word": w, "start": round(t, 2), "end": round(t + 0.28, 2)})
-                t += 0.33
+            if mod_s == "elevenlabs/scribe-v2":
+                # Accurate word timings matching speech.mp3's three voiced bursts (0-1.10, 1.50-2.60, 3.00-4.10),
+                # leaving silences 1.10-1.50s and 2.60-3.00s cleanly between words.
+                groups = [(words[:2], 0.05, 1.05), (words[2:8], 1.55, 2.55), (words[8:], 3.05, 4.05)]
+                out = []
+                for grp, gs, ge in groups:
+                    step = (ge - gs) / len(grp)
+                    for idx, w in enumerate(grp):
+                        out.append({"word": w, "start": round(gs + idx * step, 3),
+                                    "end": round(gs + (idx + 0.85) * step, 3)})
+            else:
+                # Parakeet-like imprecise timings that drift across the real silences.
+                out, t = [], 0.2
+                for w in words:
+                    out.append({"word": w, "start": round(t, 2), "end": round(t + 0.28, 2)})
+                    t += 0.33
             return self._send(200, {"text": " ".join(words), "words": out}, charge=self._charge(0.001))
         if p == "/chat/completions":
             content = json.dumps({"results": [{"image": "candidate", "scores": {"product_shape": 5, "label_logo": 4},
@@ -704,16 +728,130 @@ def main():
         expect=("elevenlabs-tts-v4-turbo: 3 voices", "tts-kokoro: 3 voices"), absent=("elevenlabs-music:",))
     run("tts via /audio/speech", "audio.py", "tts", "--text", "Stop scrolling.", "--model", "tts-kokoro", "--voice",
         "af_sky", "--out", root / "audio/kokoro_check.mp3")
-    run("tts via a queued voice model (wrong voice -> its default)", "audio.py", "tts", "--spec", spec, "--interval", "0.3",
-        expect=("voice 'af_sky' is not offered", "words/s"))
+    run("tts via a queued voice model (wrong voice -> its default, reports no speed control)", "audio.py", "tts",
+        "--spec", spec, "--interval", "0.3", expect=("voice 'af_sky' is not offered", "words/s", "no native speed control"))
+    run("tts via queued voice model accepts custom ElevenLabs voice ID", "audio.py", "tts",
+        "--text", "Stop scrolling.", "--model", "elevenlabs-tts-v4-turbo", "--voice", "21m00Tcm4TlvDq8ikWAM",
+        "--out", root / "audio/custom_voice.mp3", "--interval", "0.3", absent=("is not offered",))
     check("the spec records the voice-over", common.load_json(spec)["voiceover"].get("file", "").endswith("v01_vo.mp3")
           and common.load_json(spec)["voiceover"].get("voice") == "Aria")
-    run("transcribe+align", "audio.py", "transcribe", "--spec", spec)
+    run("transcribe+align (defaults to elevenlabs/scribe-v2)", "audio.py", "transcribe", "--spec", spec,
+        expect=("tokentide:elevenlabs/scribe-v2+script",), absent=("WARNING:",))
+
+    # Item 2: words.json boundaries land inside detected silences; private-key fallback to Parakeet warns on drift.
+    import audio as A  # noqa: E402
+    words_json = common.load_json(root / "captions/v01_words.json")
+    sil_issues = A.check_word_silences(root / "audio/v01_vo.mp3", words_json["words"])
+    check("words.json boundaries land inside detected silences", not sil_issues, str(sil_issues))
+    STATE["block_scribe"] = True
+    (work / "_script.txt").write_text(SPEC["voiceover"]["script"], encoding="utf-8")
+    run("transcribe falls back to Parakeet on 403 and warns on silence drift", "audio.py", "transcribe",
+        "--file", root / "audio/v01_vo.mp3", "--out", root / "captions/v01_parakeet_words.json",
+        "--script-file", work / "_script.txt",
+        expect=("falling back to nvidia/parakeet-tdt-0.6b-v3", "WARNING:", "long silence(s)"))
+    STATE["block_scribe"] = False
+
+    # Item 1: pace lengthens only silent pauses; every voiced sample is bit-for-bit identical to input PCM.
+    paced_wav = root / "audio/v01_vo_paced.wav"
+    paced_words = root / "captions/v01_paced_words.json"
+    run("audio pace brings VO into target w/s without stretching", "audio.py", "pace",
+        "--file", root / "audio/v01_vo.mp3", "--words", root / "captions/v01_words.json",
+        "--out", paced_wav, "--words-out", paced_words, "--target-wps", "2.0", expect=("words/s",))
+    in_pcm, in_sr, in_ch = A.read_pcm(root / "audio/v01_vo.mp3")
+    out_pcm, out_sr, out_ch = A.read_pcm(paced_wav)
+    in_runs = A.silent_runs_pcm(in_pcm, in_sr, in_ch, threshold_db=-60.0, min_ms=120.0)
+    # Extract voiced spans between silent runs in the input and verify every voiced sample matches verbatim in output.
+    in_nf = len(in_pcm) // in_ch
+    voiced_in, cur = [], 0
+    for r0, r1 in in_runs:
+        if r0 > cur:
+            voiced_in.append((cur, r0))
+        cur = r1
+    if in_nf > cur:
+        voiced_in.append((cur, in_nf))
+    out_runs = A.silent_runs_pcm(out_pcm, out_sr, out_ch, threshold_db=-60.0, min_ms=120.0)
+    out_nf = len(out_pcm) // out_ch
+    voiced_out, cur = [], 0
+    for r0, r1 in out_runs:
+        if r0 > cur:
+            voiced_out.append((cur, r0))
+        cur = r1
+    if out_nf > cur:
+        voiced_out.append((cur, out_nf))
+    identical = (in_sr == out_sr and in_ch == out_ch and len(voiced_in) == len(voiced_out) and len(voiced_in) >= 2 and
+                 all(in_pcm[a * in_ch : b * in_ch] == out_pcm[c * out_ch : d * out_ch]
+                     for (a, b), (c, d) in zip(voiced_in, voiced_out)))
+    p_words = common.load_json(paced_words)
+    p_wps = len(p_words["words"]) / p_words["duration"]
+    check("paced VO has identical voiced samples and hits target wps",
+          identical and abs(p_wps - 2.0) < 0.05 and not A.check_word_silences(paced_wav, p_words["words"]),
+          f"identical={identical}, wps={p_wps:.2f}, v_in={len(voiced_in)}, v_out={len(voiced_out)}")
+
+    # Item 3: silence-snapped speech split/trim + hot-edge abort check.
+    run("audio split snaps cuts to real silences", "audio.py", "split",
+        "--file", root / "audio/v01_vo.mp3", "--cuts", "1.25,2.75", "--out-dir", root / "audio/pieces",
+        expect=("edges=",))
+    run("audio split aborts when no silence near cut (refuses mid-word cut)", "audio.py", "split",
+        "--file", root / "audio/v01_vo.mp3", "--cuts", "0.55", "--max-drift", "0.2",
+        "--out-dir", root / "audio/pieces_bad", ok=(1,), expect=("refusing to cut mid-word",))
+    hot_ok = False
+    try:
+        A.check_speech_edges(in_pcm[: int(0.3 * in_sr) * in_ch], in_sr, in_ch)
+    except ValueError:
+        hot_ok = True
+    check("check_speech_edges aborts on hot (> -50 dBFS) speech edge", hot_ok)
+
+    # Item 5: model_spec-driven music/sfx body builder.
+    m_lyria = {"id": "lyria-3-pro", "model_spec": {"pricing": {"generation": {"usd": 0.1}}, "supports_force_instrumental": False}}
+    m_mm = {"id": "minimax-music-v26", "model_spec": {"pricing": {"generation": {"usd": 0.18}}, "supports_force_instrumental": True}}
+    m_ace = {"id": "ace-step-15", "model_spec": {"duration_options": [60, 90, 120], "min_duration": 60, "max_duration": 210,
+                                                 "supports_force_instrumental": False}}
+    m_sonilo = {"id": "sonilo-v1-1-music", "model_spec": {"min_duration": 1, "max_duration": 600, "supports_force_instrumental": False}}
+    check("music/sfx model_spec duration & instrumental rules",
+          common.audio_duration_for(m_lyria, 20) is None and not common.audio_supports_instrumental(m_lyria)
+          and common.audio_duration_for(m_mm, 20) is None and common.audio_supports_instrumental(m_mm)
+          and common.audio_duration_for(m_ace, 20) == 60 and not common.audio_supports_instrumental(m_ace)
+          and common.audio_duration_for(m_sonilo, 20) == 20 and not common.audio_supports_instrumental(m_sonilo))
+
+    # Item 6: loudnorm dynamic fallback -> constant gain + true-peak alimiter (voice-only normalization).
+    peaky = work / "peaky_vo.wav"
+    ff(["-f", "lavfi", "-i",
+        "aevalsrc=0.06*sin(2*PI*220*t)+0.85*sin(2*PI*440*t)*lt(mod(t\\,2.0)\\,0.03):s=48000:d=6.0",
+        "-c:a", "pcm_s16le", peaky])
+    norm_out = work / "peaky_vo_norm.wav"
+    r_nm = run("audio normalize detects loudnorm dynamic fallback -> gain+alimiter", "audio.py", "normalize",
+               "--file", peaky, "--out", norm_out, "--lufs", "-14", "--true-peak", "-1.5",
+               expect=("gain+alimiter",))
+    import assemble as ASM  # noqa: E402
+    ln_peaky = ASM.loudness(norm_out) or {}
+    check("gain+alimiter keeps true peak <= -1.0 dBTP", common._f(ln_peaky.get("input_tp"), 0.0) <= -1.0, str(ln_peaky))
+
     run("captions", "captions.py", "--spec", spec)
     run("assemble master (generated music + sfx)", "assemble.py", "--spec", spec)
+    r_json = common.load_json(root / "renders/v01_render.json")
+    check("render.json records canvas and loudness path",
+          r_json.get("canvas", {}).get("width") == 1080 and bool(r_json.get("loudness_path_master")), str(r_json.get("canvas")))
     run("qa check", "qa.py", "check", root / "renders/v01_master.mp4", "--spec", spec)
     run("qa frames", "qa.py", "frames", root / "renders/v01_master.mp4", "--every", "1")
     run("qa safezone", "qa.py", "safezone", root / "renders/v01_master.mp4", "--t", "1.0")
+
+    # Item 7 + Item 1d: 16:9 canvas (1920x1080) + slowed clip mutes native audio by default.
+    spec16 = common.load_json(spec)
+    spec16["id"] = "v16"
+    spec16["canvas"] = "16:9"
+    spec16["aspect_ratio"] = "16:9"
+    spec16["shots"][1]["edit"]["speed"] = 0.8
+    spec16_path = root / "briefs/v16.json"
+    common.save_json(spec16_path, spec16)
+    run("captions 16:9 (PlayRes 1920x1080)", "captions.py", "--spec", spec16_path)
+    ass16 = (root / "captions/v16.ass").read_text(encoding="utf-8")
+    check("16:9 captions set PlayResX/Y 1920x1080", "PlayResX: 1920" in ass16 and "PlayResY: 1080" in ass16)
+    run("assemble 16:9 master + slowed clip mutes native audio", "assemble.py", "--spec", spec16_path,
+        expect=("1920x1080", "muting native clip audio by default"))
+    info16 = common.probe(root / "renders/v16_master.mp4")
+    check("16:9 master is 1920x1080", (info16["width"], info16["height"]) == (1920, 1080), str(info16))
+    run("qa check 16:9", "qa.py", "check", root / "renders/v16_master.mp4", "--spec", spec16_path)
+    run("qa safezone 16:9", "qa.py", "safezone", root / "renders/v16_master.mp4", "--t", "1.0", expect=("16:9 1920x1080",))
     run("qa vision (mock)", "qa.py", "vision", "--images", root / "keyframes/v01_s1_k1.png", "--reference",
         root / "assets/product/front.jpg")
     run("package", "package.py", "--spec", spec)

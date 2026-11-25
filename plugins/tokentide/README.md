@@ -19,7 +19,7 @@ Gemini and other providers is at https://tokentide.app/docs/fallback.
   usage, run chat, embeddings and decision requests under your own price caps, generate and edit
   images, create video and music jobs (finished files come back as download links), and link the video
   skill's scripts to your account.
-- **Viral product video skill** (`skills/viral-product-video`). Your agent researches a product, writes
+- **Professional video skill** (`skills/professional-video`). Your agent researches a product, writes
   a virality strategy, then plans, generates, edits, checks and packages vertical videos for TikTok,
   Instagram Reels and X with Tokentide's image, video, voice and music models and FFmpeg. It first asks
   whether you name the models or want a recommendation: three levels (Essential, Pro, Max) built from the

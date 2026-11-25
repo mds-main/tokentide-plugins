@@ -121,7 +121,7 @@ def build_job(spec, shot, models):
     for k in ("negative_prompt", "resolution"):
         if v.get(k):
             body[k] = v[k]
-    ar = v.get("aspect_ratio", spec.data.get("aspect_ratio", "9:16"))
+    ar = v.get("aspect_ratio") or common.canvas_for(spec=spec)["aspect"]
     if ar:
         body["aspect_ratio"] = ar
     if v.get("audio") is not None:

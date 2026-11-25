@@ -79,6 +79,10 @@ Look: shot on a phone · UGC selfie · documentary · commercial studio · edito
 - Slow camera moves for products; fast moves only for transitions.
 - Keep hands away from labels; or show the product alone and cut to hands separately.
 - No model-rendered text; all text in post.
+- **Software products and UI screenshots:** never run image-to-video on UI screenshots, because video
+  models garble interface text, buttons, numbers and icons. Keep real screenshots crisp with 2D camera
+  moves (`keyframe.mode: "frame"` or `shots[].clip` + `edit.zoom` push/pull/punch, or FFmpeg 2D pan/zoom),
+  and reserve video generation models for abstract backgrounds, environments or B-roll without UI.
 - Liquids, fabric, hair, pours: generate 3 takes and pick.
 - Transparent/reflective products: simplify the background, avoid complex reflections.
 - If a take morphs the product twice in a row: shorten, simplify motion, or switch model —
@@ -107,7 +111,9 @@ Music and VO are added in post (licensing + control). If the model adds unwanted
 set `audio: false` or keep clip audio low (`audio_mix.keep_clip_audio`, volume 0.3–0.5).
 
 ## 9. Voice-over scripts
-- 2.3–3.0 spoken words per second (≈35 words for 13 s). `audio.py tts` prints the pace.
+- 2.3–3.0 spoken words per second (≈35 words for 13 s). `audio.py tts` prints the pace and notes when
+  a model has no native speed control. **Never time-stretch speech (`atempo`):** if the take is too fast,
+  shorten the script, switch to a model with native speed control, or lengthen pauses with `audio.py pace`.
 - Front-load the hook; one idea per sentence; contractions; second person; numbers as words the TTS
   reads naturally ("forty-one degrees").
 - Write for the ear in the target language; for other languages pick a native voice

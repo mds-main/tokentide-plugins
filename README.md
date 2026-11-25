@@ -14,7 +14,7 @@ the connector is in [`server.json`](server.json).
 
 | Package                                       | What it adds                                                                                                                                                                           | Install                                                           |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`tokentide`](plugins/tokentide) plugin       | The Tokentide connector (live prices, Low Tide, quotes, estimates, models, balance, usage and paid calls under your caps) and the viral product video skill                            | [Claude, ChatGPT and Codex](#install-the-plugin)                  |
+| [`tokentide`](plugins/tokentide) plugin       | The Tokentide connector (live prices, Low Tide, quotes, estimates, models, balance, usage and paid calls under your caps) and the professional video skill                             | [Claude, ChatGPT and Codex](#install-the-plugin)                  |
 | [`tokentide-api`](skills/tokentide-api) skill | Everything a coding agent needs to set up, build on and optimize the Tokentide API: account and key setup, model choice, cost control, reliability, errors, security and the EU AI Act | `npx skills add mds-main/tokentide-plugins --skill tokentide-api` |
 
 ## Agent skill for any coding agent
