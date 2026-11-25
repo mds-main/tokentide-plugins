@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Create a project workspace with the research/strategy templates and folder layout.
+"""Create a project workspace with templates and the universal visual-grounding folder layout.
 
-  init_project.py "Acme Bottle" [--root projects] [--budget-usd 50] [--platforms tiktok,instagram,x]
-                  [--languages en] [--markets US] [--url https://acme.com/bottle]
+  init_project.py "My Video" [--type general|campaign|guide|personal|commercial|explainer|story]
+                  [--canvas 16:9|9:16|1:1] [--root projects] [--budget-usd 50]
+                  [--platforms youtube,tiktok,instagram,x] [--languages en] [--markets US] [--url https://...]
 
-Layout: research/ strategy/ briefs/ assets/{product,brand,fonts,scenes,music,sfx}/ keyframes/ clips/ audio/
-        captions/ renders/ qa/ post/ logs/  + project.json (budget cap, platforms, languages)
+Layout: research/ strategy/ briefs/
+        assets/{people,captures,product,brand,fonts,references,footage,scenes,music,sfx}/
+        keyframes/ clips/ audio/ captions/ renders/ qa/ post/ logs/ + project.json
 """
 from __future__ import annotations
 
@@ -15,13 +17,20 @@ from pathlib import Path
 
 import common
 
-DIRS = ["research", "strategy", "briefs", "assets/product", "assets/brand", "assets/fonts", "assets/scenes", "assets/music",
-        "assets/sfx", "keyframes", "clips", "audio", "captions", "renders", "qa", "post", "logs"]
+DIRS = [
+    "research", "strategy", "briefs",
+    "assets/people", "assets/captures", "assets/product", "assets/brand", "assets/fonts",
+    "assets/references", "assets/footage", "assets/scenes", "assets/music", "assets/sfx",
+    "keyframes", "clips", "audio", "captions", "renders", "qa", "post", "logs",
+]
+PROJECT_TYPES = ["general", "campaign", "guide", "personal", "commercial", "explainer", "story"]
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("name")
+    ap.add_argument("--type", default="general", choices=PROJECT_TYPES,
+                    help="video project type (guides workflow depth)")
     ap.add_argument("--root", default="projects")
     ap.add_argument("--budget-usd", type=float, default=50.0, help="hard cap for Tokentide spend in this project")
     ap.add_argument("--platforms", default="tiktok,instagram,x")
@@ -57,7 +66,7 @@ def main():
             copied.append(str(dst.relative_to(root)))
     if not exists:
         common.save_json(root / "project.json", {
-            "name": a.name, "slug": slug, "created": common.now_iso(), "product_url": a.url,
+            "name": a.name, "slug": slug, "type": a.type, "created": common.now_iso(), "product_url": a.url,
             "platforms": [p.strip() for p in a.platforms.split(",") if p.strip()],
             "languages": [x.strip() for x in a.languages.split(",") if x.strip()],
             "markets": [x.strip() for x in a.markets.split(",") if x.strip()],
@@ -67,9 +76,9 @@ def main():
     print(f"{'Updated' if exists else 'Created'} project: {root}")
     for c in copied:
         print(f"  + {c}")
-    print("Next: put product photos in assets/product/ (several angles, plain background, high-res) and the logo "
-          "(transparent PNG) in assets/brand/, then get live model options for the user to choose from:\n"
-          f"  python3 {Path(__file__).resolve().parent}/models.py recommend --project {root}")
+    print("Next: store visual anchors under assets/ (people/, captures/, product/, references/, footage/, brand/, fonts/), "
+          "then pick models from the live catalog:\n"
+          f"  python3 {Path(__file__).resolve().parent}/models.py tiers --project {root}")
 
 
 if __name__ == "__main__":

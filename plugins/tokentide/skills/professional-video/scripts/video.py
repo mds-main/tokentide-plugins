@@ -113,6 +113,40 @@ def validate(body, entry):
     return body, warns
 
 
+_IMAGE_KEYS = {"image_url", "end_image_url", "frontal_image_url", "reference_image_urls", "reference_images",
+               "image", "images"}
+
+
+def _is_local_img_ref(spec, val) -> bool:
+    if not isinstance(val, str) or not val.strip() or val.startswith(("http://", "https://", "data:")):
+        return False
+    p = spec.p(val)
+    return isinstance(p, Path) and p.is_file()
+
+
+def _count_nested_images(spec, obj, in_img_key=False) -> int:
+    if isinstance(obj, str):
+        return 1 if (in_img_key and _is_local_img_ref(spec, obj)) else 0
+    if isinstance(obj, list):
+        return sum(_count_nested_images(spec, x, in_img_key=in_img_key) for x in obj)
+    if isinstance(obj, dict):
+        return sum(_count_nested_images(spec, val, in_img_key=(k in _IMAGE_KEYS)) for k, val in obj.items())
+    return 0
+
+
+def _encode_nested_images(spec, obj, budget, max_side=1920, in_img_key=False):
+    if isinstance(obj, str):
+        if in_img_key and _is_local_img_ref(spec, obj):
+            return api.encode_image(spec.p(obj), mode="data-url", max_side=max_side, max_bytes=budget, keep_png=False)
+        return obj
+    if isinstance(obj, list):
+        return [_encode_nested_images(spec, x, budget, max_side=max_side, in_img_key=in_img_key) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _encode_nested_images(spec, val, budget, max_side=max_side, in_img_key=(k in _IMAGE_KEYS))
+                for k, val in obj.items()}
+    return obj
+
+
 def build_job(spec, shot, models):
     v = shot.get("video") or {}
     model = common.resolve_model(spec.root, v.get("model")) or common.die(f"{shot['id']}: video.model missing")
@@ -129,17 +163,33 @@ def build_job(spec, shot, models):
     needs_image = any(t in model for t in ("image-to-video", "reference-to-video", "motion-control"))
     kf = shot.get("keyframe") or {}
     img = v.get("image") or kf.get("selected") or (kf.get("candidates") or [None])[0]
-    n_imgs = 1 + (1 if v.get("end_image") else 0)
-    budget = api.per_image_budget(n_imgs, other_bytes=len(prompt) * 2 + 20_000)
+    ref_imgs = list(v.get("reference_images") or [])
+    extra = dict(v.get("extra") or {})
+    if v.get("elements") is not None and "elements" not in extra:
+        extra["elements"] = v["elements"]
+    max_side = int(v.get("max_input_side", 1920))
+    n_imgs = (
+        (1 if ("text-to-video" not in model and img) else 0)
+        + (1 if v.get("end_image") else 0)
+        + len(ref_imgs)
+        + _count_nested_images(spec, extra)
+    )
+    budget = api.per_image_budget(max(1, n_imgs), other_bytes=len(prompt) * 2 + 25_000)
     if "text-to-video" not in model and img:
-        body["image_url"] = api.encode_image(spec.p(img), mode="data-url", max_side=int(v.get("max_input_side", 1920)),
+        body["image_url"] = api.encode_image(spec.p(img), mode="data-url", max_side=max_side,
                                              max_bytes=budget, keep_png=False)
-    elif needs_image:
-        common.die(f"{shot['id']}: {model} needs an input image (keyframe.selected or video.image)")
+    elif needs_image and not ref_imgs and not extra.get("elements"):
+        common.die(f"{shot['id']}: {model} needs an input image (keyframe.selected, video.image, reference_images or elements)")
     if v.get("end_image"):
-        body["end_image_url"] = api.encode_image(spec.p(v["end_image"]), mode="data-url", max_side=1920,
+        body["end_image_url"] = api.encode_image(spec.p(v["end_image"]), mode="data-url", max_side=max_side,
                                                  max_bytes=budget, keep_png=False)
-    body.update(v.get("extra") or {})
+    if ref_imgs:
+        body["reference_image_urls"] = [
+            api.encode_image(spec.p(x), mode="data-url", max_side=max_side, max_bytes=budget, keep_png=False)
+            for x in ref_imgs
+        ]
+    if extra:
+        body.update(_encode_nested_images(spec, extra, budget, max_side=max_side))
     if "seedance" in model and ("image-to-video" in model or "reference-to-video" in model):
         body.pop("aspect_ratio", None)  # Seedance I2V/R2V takes the ratio from the input image
     body, warns = validate(body, models.get(model))

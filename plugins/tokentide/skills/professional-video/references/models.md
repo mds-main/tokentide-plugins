@@ -186,13 +186,21 @@ appears: offer one test take next to the current pick. Switch with `models.py ch
 never switch silently mid-batch. Re-run `tiers` (or `recommend`) before each new batch.
 
 ## 9. Capability rules that override ratings
-- People on screen → Kling or Veo families; Seedance `-basic` models reject person-bearing inputs.
-- Diegetic sound needed (pour, fizz, crunch, ambience) → an `i2v_audio` pick with sound; otherwise silent clips
-  (cheaper) and voice/music in post.
-- Exact first and last frames (loops, match cuts) → a model with end-frame support.
-- Consistent character/mascot across shots → `r2v` pick (e.g. Kling O3 `elements`).
-- Product compositing needs an edit model that takes ≥ 2 input images (the keyframe job filters for it).
-- Confidential product → Private option, or the client's explicit OK for Anonymized models.
+- **Real people, couples & portraits on screen (CRITICAL)** → ALWAYS use person-strong families such as
+  **Kling (V3 / O3)** or **Veo (3.x)**; **NEVER** use Seedance `-basic` models for shots with people
+  (they reject person-bearing inputs with `409`). Pair with `@r2v` (e.g. Kling O3 `elements` or
+  `reference_images`) for multi-shot facial continuity.
+- **Web apps / SaaS / software video guides** → real captured UI screenshots animated by `assemble.py`
+  (`shots[].image` + focal zoom/pan) cost **$0** in image/video generation. Pass the actual number of
+  generative shots to `models.py cost` (e.g. `--shots 0` or `--shots 1` if only adding a conceptual intro,
+  plus `--music-seconds` and `--vo-chars`) so the quote reflects real spend accurately!
+- **Multi-person / multi-reference compositing** → check `maxInputImages` (`models.py show <id>`):
+  compositing a scene + two people needs an edit model supporting ≥3 input images (some support up to 8).
+- Diegetic sound needed (pour, ocean, footsteps, ambience) → an `i2v_audio` pick with sound; otherwise
+  silent clips (cheaper) and voice/music in post.
+- Exact first and last frames (loops, match cuts, facial anchoring) → a model with end-frame support.
+- Consistent character/person/mascot across shots → `r2v` pick (e.g. Kling O3 `elements`).
+- Confidential or unreleased material → Private option, or the user's explicit OK for Anonymized models.
 - Long single takes (10–30 s) → check the max duration (`models.py show <id>`).
 - Voice-over in another language → check the voice model speaks it (`audio.py voices`): the voice levels are
   an estimate and don't check languages.

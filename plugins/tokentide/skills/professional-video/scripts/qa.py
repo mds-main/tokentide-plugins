@@ -195,8 +195,10 @@ def cmd_check(a):
         add("PASS" if abs(d - float(target)) <= tol else "WARN", "duration", f"{d:.2f}s vs target {target}s")
     else:
         add("PASS", "duration", f"{d:.2f}s")
-    for cap, label in ((140, "X non-Premium max 2:20"), (180, "Reels recommended max 3:00"), (600, "TikTok 10:00")):
-        if d > cap:
+    plats = {str(p).strip().lower() for p in (spec.data.get("platforms") or [])} if spec else None
+    for plat_key, cap, label in (("x", 140, "X non-Premium max 2:20"), ("instagram", 180, "Reels recommended max 3:00"),
+                                 ("youtube-shorts", 180, "YouTube Shorts max 3:00"), ("tiktok", 600, "TikTok 10:00")):
+        if (plats is None or plat_key in plats) and d > cap:
             add("WARN", "length cap", f"{d:.0f}s > {cap}s ({label})")
     mb = info["size_bytes"] / 1e6
     add("PASS" if mb < 250 else "WARN", "file size", f"{mb:.1f} MB")
@@ -236,15 +238,56 @@ def cmd_check(a):
     sys.exit(1 if fails else 0)
 
 
-RUBRIC = """You are a strict QA reviewer for short-form product marketing videos.
+RUBRIC = """You are a strict QA reviewer for professional product marketing videos.
 Compare every CANDIDATE image with the REFERENCE photos of the real product.
 Score each candidate 0-5 on: product_shape, label_logo (text and logo correct and legible vs reference),
 color_match, anatomy (hands/people; 5 if none visible), artifacts (5 = no morphing, melting, duplicates, warped
 geometry, flicker traces), stray_text (5 = no unintended or garbled text), composition (clear subject, strong
-9:16 framing, works as a hook), safe_zone (5 = key content inside the central safe area, nothing important in
-the top 13% or bottom 34% of the frame).
+framing matching the canvas), safe_zone (5 = key content inside the safe area, nothing important trapped in UI margins).
 pass = product_shape>=4 and label_logo>=4 and color_match>=4 and anatomy>=3 and artifacts>=4 and stray_text>=4.
 Return ONLY JSON: {"results":[{"image":"<name>","scores":{...},"pass":true,"issues":["..."],"fix":"<one concrete change to the prompt or approach>"}]}"""
+
+RUBRICS = {
+    "product": RUBRIC,
+    "people": """You are a strict visual QA director for cinematic videos featuring real people.
+Compare every CANDIDATE image side-by-side with the REFERENCE photos of the real person(s).
+Score each candidate 0-5 on: facial_likeness (exact match to each person's face, eyes, nose, jaw, hair, age, skin tone),
+identity_consistency (faithful relative height, build and natural rapport), anatomy (natural hands, fingers, posture, eye-line),
+lighting_realism (natural skin texture, coherent scene light, zero plastic AI sheen), artifacts (5 = no extra limbs, melting,
+duplicates, warped details), stray_text (5 = no unintended or garbled text), composition, safe_zone.
+pass = facial_likeness>=4 and identity_consistency>=4 and anatomy>=4 and lighting_realism>=4 and artifacts>=4 and stray_text>=4.
+Return ONLY JSON: {"results":[{"image":"<name>","scores":{...},"pass":true,"issues":["..."],"fix":"<one concrete change to the prompt or approach>"}]}""",
+    "app": """You are a strict visual QA reviewer for software, web app and data walkthrough videos.
+Inspect every CANDIDATE image (comparing against REFERENCE captures if supplied).
+Score each candidate 0-5 on: ui_fidelity (5 = razor-sharp real UI text, buttons, icons and numbers with zero AI distortion),
+legibility (focal labels and numbers readable even at 50% mobile scale), privacy_hygiene (5 = zero loading spinners, cookie
+banners, dev overlays, real personal emails, API keys, tokens or private PII), artifacts (5 = no clipping or visual glitches),
+composition, safe_zone (5 = key UI clear of player/platform UI overlays).
+pass = ui_fidelity>=5 and legibility>=4 and privacy_hygiene>=5 and artifacts>=4 and safe_zone>=4.
+Return ONLY JSON: {"results":[{"image":"<name>","scores":{...},"pass":true,"issues":["..."],"fix":"<one concrete change to the capture or framing>"}]}""",
+    "general": """You are a strict visual QA director for studio-grade videos.
+Compare every CANDIDATE image with any REFERENCE images (real photos, places, objects, Style Master or Character Sheet).
+Score each candidate 0-5 on: subject_fidelity (faithful to references/style bible; 5 if consistent), visual_craft (cinematic
+framing, coherent lighting, color palette, zero cheap AI sheen), anatomy (natural hands, faces, perspective and geometry),
+artifacts (5 = no melting, duplicates, warped edges or flicker), stray_text (5 = no unintended or garbled text),
+composition, safe_zone (5 = focal subject and titles clear of platform UI margins).
+pass = subject_fidelity>=4 and visual_craft>=4 and anatomy>=3 and artifacts>=4 and stray_text>=4.
+Return ONLY JSON: {"results":[{"image":"<name>","scores":{...},"pass":true,"issues":["..."],"fix":"<one concrete change to the prompt or approach>"}]}""",
+}
+
+
+def resolve_vision_mode(mode: str, references: list | None) -> str:
+    m = (mode or "auto").strip().lower()
+    if m != "auto":
+        return m if m in RUBRICS else "general"
+    parts = [p.lower() for r in (references or []) for p in Path(r).parts]
+    if "people" in parts:
+        return "people"
+    if "captures" in parts:
+        return "app"
+    if "product" in parts:
+        return "product"
+    return "general"
 
 
 def pick_vision_model(root):
@@ -270,7 +313,9 @@ def cmd_vision(a):
     root = common.find_project_root(Path(a.images[0]).resolve().parent)
     api.use_project(root)
     model = a.model or pick_vision_model(root)
-    content = [{"type": "text", "text": RUBRIC + (f"\nContext: {a.context}" if a.context else "")}]
+    mode = resolve_vision_mode(getattr(a, "mode", "auto"), a.reference)
+    rubric = RUBRICS[mode]
+    content = [{"type": "text", "text": rubric + (f"\nContext: {a.context}" if a.context else "")}]
     for r in a.reference or []:
         content += [{"type": "text", "text": f"REFERENCE {Path(r).name}:"},
                     {"type": "image_url", "image_url": {"url": api.encode_image(r, mode="data-url", max_side=1024, keep_png=False)}}]
@@ -289,10 +334,11 @@ def cmd_vision(a):
     except json.JSONDecodeError:
         data = {"raw": text}
     data["model"] = model
+    data["mode"] = mode
     out = Path(a.out) if a.out else ((root / "qa") if root else Path(".")) / "vision_qa.json"
     common.save_json(out, data)
     for r in data.get("results", []):
-        print(f"{'PASS' if r.get('pass') else 'FAIL'} {r.get('image')}: {r.get('scores')} {('- ' + '; '.join(r.get('issues', []))) if r.get('issues') else ''}")
+        print(f"{'PASS' if r.get('pass') else 'FAIL'} {r.get('image')} [{mode}]: {r.get('scores')} {('- ' + '; '.join(r.get('issues', []))) if r.get('issues') else ''}")
     print(f"saved {out}")
 
 
@@ -322,7 +368,9 @@ def main():
     z.add_argument("--out")
     v = sub.add_parser("vision")
     v.add_argument("--images", nargs="+", required=True)
-    v.add_argument("--reference", nargs="*", help="real product photos")
+    v.add_argument("--reference", nargs="*", help="real reference photos, captures or style anchors")
+    v.add_argument("--mode", default="auto", choices=["auto", "general", "product", "people", "app"],
+                   help="QA rubric mode (auto detects from reference folder: people/captures/product/general)")
     v.add_argument("--model")
     v.add_argument("--context", help="what the shot should show")
     v.add_argument("--out")

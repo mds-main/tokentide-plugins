@@ -1,9 +1,13 @@
 # professional-video — agent skill (Tokentide plugin)
 
-Researches a product or brand in depth, builds a virality strategy, and produces finished vertical
-videos for TikTok, Instagram Reels and X through the Tokentide API (a Venice-compatible API) + FFmpeg.
-The agent (Claude, ChatGPT or Codex) reads `SKILL.md`; `agents/openai.yaml` holds its display name and
-connector dependency for ChatGPT and Codex; this README is for humans.
+Universal studio-grade video production skill for any kind of video (`16:9`, `9:16` or `1:1`) — films,
+personal stories, app and website video guides, tutorials, commercials, explainers, trailers and social
+campaigns for YouTube, TikTok, Instagram Reels, X, LinkedIn or direct delivery — through the Tokentide
+API (a Venice-compatible API) + FFmpeg. Grounds every visual anchor first (gathering real reference
+photos, capturing live workflows via browser/computer use with login handoff on gated apps, or locking
+style sheets) so finished videos stay faithful and non-hallucinated. The agent (Claude, ChatGPT, Codex
+or Antigravity) reads `SKILL.md`; `agents/openai.yaml` holds its display name and connector dependency
+for ChatGPT and Codex; this README is for humans.
 
 ## Install
 This skill ships in the `tokentide` plugin, together with the Tokentide connector. Install the plugin

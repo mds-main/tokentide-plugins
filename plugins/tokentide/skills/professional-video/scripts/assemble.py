@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Assemble the finished video from a spec (FFmpeg).
 
-clips -> trim/speed/zoom -> cuts or transitions -> optional end card / seamless loop
-      -> logo/image overlays + burned captions & hook text (ASS) -> one high-quality encode
+clips / still captures -> fit (cover/contain/blur) + trim/speed/focal Ken Burns zoom & pan
+      -> cuts or transitions -> optional end card / seamless loop
+      -> logo/image overlays + burned captions & title/hook text (ASS) -> one high-quality encode
       -> audio mix (VO + ducked music + SFX + optional native clip audio)
       -> loudness normalization (linear loudnorm, else fixed gain + true-peak alimiter) -> mux
 
 Outputs in <project>/renders/:
-  <vid>_master.mp4    canvas (default 1080x1920 9:16; supports 16:9, 1:1) 30fps H.264 High + AAC 48k
+  <vid>_master.mp4    canvas (9:16 1080x1920 default; 16:9 1920x1080; 1:1 1080x1080) 30fps H.264 High + AAC 48k
   <vid>_nomusic.mp4   same minus music, for adding a licensed/commercial-library sound in-app (only if music set)
-  <vid>_cover.jpg     clean frame + cover title; <vid>_cover_grid.jpg = centred 3:4 crop (9:16 only)
+  <vid>_cover.jpg     clean frame + optional cover title; <vid>_cover_grid.jpg = centred 3:4 crop (9:16 only)
   <vid>_render.json   timeline, canvas, durations, loudness report & normalization path
 --draft writes only <vid>_draft.mp4 quickly (veryfast encode) for review.
 Edit grammar is documented in references/post-production.md.
@@ -26,6 +27,7 @@ import captions
 import common
 from common import FPS, H, W
 
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 XFADES = {"fade", "fadeblack", "fadewhite", "fadegrays", "fadefast", "fadeslow", "dissolve", "wipeleft", "wiperight",
           "wipeup", "wipedown", "slideleft", "slideright", "slideup", "slidedown", "smoothleft", "smoothright",
           "smoothup", "smoothdown", "circlecrop", "rectcrop", "circleopen", "circleclose", "vertopen", "vertclose",
@@ -35,31 +37,139 @@ XFADES = {"fade", "fadeblack", "fadewhite", "fadegrays", "fadefast", "fadeslow",
 OVERLAY_POS = common.CANVASES["9:16"]["overlay_pos"]
 
 
-def resolve_clip(spec, shot) -> Path:
+def is_image(path: Path) -> bool:
+    return Path(path).suffix.lower() in IMAGE_EXTS
+
+
+def parse_transition(tr) -> dict:
+    if not tr:
+        return {"type": "cut"}
+    if isinstance(tr, str):
+        return {"type": tr, "duration": 0.25}
+    if isinstance(tr, dict):
+        return tr
+    return {"type": "cut"}
+
+
+def resolve_source(spec, shot) -> tuple[Path, bool]:
+    """Resolve a shot's visual source -> (path, is_still_image)."""
     v = shot.get("video") or {}
-    src = shot.get("clip") or v.get("selected") or (v.get("candidates") or [None])[0]
+    kf = shot.get("keyframe") or {}
+    src = shot.get("clip") or shot.get("image") or v.get("selected") or (v.get("candidates") or [None])[0]
+    used_unselected_video = bool(not shot.get("clip") and not shot.get("image") and not v.get("selected") and src)
+    if not src and not v:
+        src = kf.get("selected") or (kf.get("candidates") or [None])[0] or (kf.get("inputs") or [None])[0]
     if not src:
-        common.die(f"{shot['id']}: no clip. Generate (video.py run) and select (video.py select) first, "
-                   f"or set shots[].clip to an existing file.")
-    p = spec.p(src)
-    if not Path(p).exists():
-        common.die(f"{shot['id']}: clip not found: {p}")
-    if not v.get("selected") and not shot.get("clip"):
+        common.die(f"{shot['id']}: no clip or image. Generate (video.py run) and select (video.py select), "
+                   f"or set shots[].clip / shots[].image / keyframe.inputs.")
+    p = Path(spec.p(src))
+    if not p.exists():
+        common.die(f"{shot['id']}: media not found: {p}")
+    if used_unselected_video:
         common.log(f"note: {shot['id']} has no selected take; using first candidate {src}")
-    return Path(p)
+    return p, is_image(p)
+
+
+def resolve_clip(spec, shot) -> Path:
+    return resolve_source(spec, shot)[0]
+
+
+def parse_zoom(z):
+    """Parse edit.zoom -> (kind, amount, fx, fy) or None."""
+    if not z:
+        return None
+    if isinstance(z, str):
+        kind = z.strip().lower()
+        amt = 0.12 if kind == "punch" else 0.10 if kind.startswith("pan-") else 0.08
+        fx, fy = 0.5, 0.5
+    elif isinstance(z, dict):
+        kind = str(z.get("type", "punch")).strip().lower()
+        default_amt = 0.12 if kind == "punch" else 0.10 if kind.startswith("pan-") else 0.08
+        amt = float(z.get("amount") if z.get("amount") is not None else default_amt)
+        fx = float(z.get("x") if z.get("x") is not None else 0.5)
+        fy = float(z.get("y") if z.get("y") is not None else 0.5)
+    else:
+        common.die(f"invalid zoom spec: {z!r}")
+    valid = {"punch", "push", "pull", "pan-left", "pan-right", "pan-up", "pan-down"}
+    if kind not in valid:
+        common.die(f"unknown zoom type '{kind}' ({'|'.join(sorted(valid))})")
+    amt = max(0.0, min(1.5, amt))
+    fx = max(0.0, min(1.0, fx))
+    fy = max(0.0, min(1.0, fy))
+    return kind, amt, fx, fy
+
+
+def _fit_color(bg: str) -> str:
+    return (bg or "#0B0E14").strip()
+
+
+def _fit_simple_vf(fit: str, bg: str, w: int, h: int) -> str:
+    if fit == "contain":
+        return f"scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color={_fit_color(bg)}"
+    return f"scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h}"
+
+
+def _render_fitted_frame(src: Path, dst: Path, fit: str, bg: str, w: int, h: int) -> None:
+    """Render one fitted still image to exact w x h (cover, contain, or blurred backdrop)."""
+    if fit == "blur" and common.has_filter("boxblur"):
+        bright = ",eq=brightness=-0.12" if common.has_filter("eq") else ""
+        fc = (f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},"
+              f"boxblur=24:2{bright}[bg];"
+              f"[0:v]scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos[fg];"
+              f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,format=rgb24[out]")
+        common.ffmpeg(["-y", "-i", src, "-filter_complex", fc, "-map", "[out]", "-frames:v", "1", dst])
+    else:
+        vf = _fit_simple_vf("contain" if fit == "blur" else fit, bg, w, h) + ",setsar=1,format=rgb24"
+        common.ffmpeg(["-y", "-i", src, "-vf", vf, "-frames:v", "1", dst])
 
 
 def zoom_filters(z, dur, w=W, h=H):
-    if not z:
+    """Frame-evaluated zoom/pan filters for video clips (supports focal x/y and pans)."""
+    parsed = parse_zoom(z)
+    if not parsed:
         return []
-    kind = z if isinstance(z, str) else z.get("type", "punch")
-    amt = float((z.get("amount") if isinstance(z, dict) else None) or (0.12 if kind == "punch" else 0.08))
+    kind, amt, fx, fy = parsed
+    if amt <= 1e-4:
+        return []
+    dur = max(0.1, float(dur))
     if kind == "punch":
-        return [f"scale=trunc(iw*{1 + amt:.4f}/2)*2:-2:flags=lanczos,crop={w}:{h}"]
+        scale_f = 1.0 + amt
+        cx = f"max(0,min(iw-{w},iw*{fx:.4f}-{w}/2))"
+        cy = f"max(0,min(ih-{h},ih*{fy:.4f}-{h}/2))"
+        return [f"scale=trunc(iw*{scale_f:.4f}/2)*2:trunc(ih*{scale_f:.4f}/2)*2:flags=lanczos,crop={w}:{h}:{cx}:{cy}"]
     if kind in ("push", "pull"):
-        f = f"(1+{amt}*t/{dur:.3f})" if kind == "push" else f"(1+{amt}-{amt}*t/{dur:.3f})"
-        return [f"scale=w='trunc({w}*{f}/2)*2':h='trunc({h}*{f}/2)*2':eval=frame:flags=bicubic,crop={w}:{h}"]
-    common.die(f"unknown zoom type '{kind}' (punch|push|pull)")
+        f = f"(1+{amt:.4f}*t/{dur:.3f})" if kind == "push" else f"(1+{amt:.4f}-{amt:.4f}*t/{dur:.3f})"
+        cx = f"max(0,min(iw-{w},iw*{fx:.4f}-{w}/2))"
+        cy = f"max(0,min(ih-{h},ih*{fy:.4f}-{h}/2))"
+        return [f"scale=w='trunc({w}*{f}/2)*2':h='trunc({h}*{f}/2)*2':eval=frame:flags=bicubic,crop={w}:{h}:'{cx}':'{cy}'"]
+    # Directional pan on video clips: scale up by (1 + amt), then slide crop window across time
+    scale_f = 1.0 + amt
+    sw = f"trunc({w}*{scale_f:.4f}/2)*2"
+    sh = f"trunc({h}*{scale_f:.4f}/2)*2"
+    cx_fix = f"max(0,min(iw-{w},iw*{fx:.4f}-{w}/2))"
+    cy_fix = f"max(0,min(ih-{h},ih*{fy:.4f}-{h}/2))"
+    p = f"min(1,max(0,t/{dur:.3f}))"
+    if kind == "pan-right":
+        cx, cy = f"(iw-{w})*{p}", cy_fix
+    elif kind == "pan-left":
+        cx, cy = f"(iw-{w})*(1-{p})", cy_fix
+    elif kind == "pan-down":
+        cx, cy = cx_fix, f"(ih-{h})*{p}"
+    else:  # pan-up
+        cx, cy = cx_fix, f"(ih-{h})*(1-{p})"
+    return [f"scale={sw}:{sh}:flags=lanczos,crop={w}:{h}:'{cx}':'{cy}'"]
+
+
+def _fade_filters(e: dict, dur: float) -> list[str]:
+    vf = []
+    fi = float(e.get("fade_in") or 0)
+    fo = float(e.get("fade_out") or 0)
+    if fi > 0:
+        vf.append(f"fade=t=in:st=0:d={min(fi, dur / 2):.3f}")
+    if fo > 0:
+        d = min(fo, dur / 2)
+        vf.append(f"fade=t=out:st={max(0.0, dur - d):.3f}:d={d:.3f}")
+    return vf
 
 
 def atempo_chain(speed: float):
@@ -75,23 +185,112 @@ def atempo_chain(speed: float):
     return out
 
 
+def normalize_still(src: Path, dst: Path, e: dict, w=W, h=H, fps=FPS):
+    """Animate a still image (UI screenshot, real photo, slide, graphic) with smooth focal Ken Burns & fit modes."""
+    dur = e.get("duration")
+    if dur in (None, ""):
+        t_in = float(e.get("in") or 0.0)
+        t_out = e.get("out")
+        dur = (float(t_out) - t_in) if t_out not in (None, "") else 4.0
+    dur = max(0.2, float(dur))
+    fit = str(e.get("fit") or "cover").strip().lower()
+    if fit not in ("cover", "contain", "blur"):
+        common.die(f"unknown fit mode '{fit}' (cover|contain|blur)")
+    bg = _fit_color(e.get("bg") or "#0B0E14")
+    parsed = parse_zoom(e.get("zoom"))
+    extra = []
+    if e.get("hflip"):
+        extra.append("hflip")
+    extra += _fade_filters(e, dur)
+
+    if not parsed or parsed[1] <= 1e-4:
+        base = dst.with_name(dst.stem + "_fit.png")
+        _render_fitted_frame(src, base, fit, bg, w, h)
+        vf = [*extra, f"setsar=1,fps={fps},format=yuv420p"]
+        common.ffmpeg(["-y", "-loop", "1", "-t", f"{dur:.3f}", "-i", base, "-vf", ",".join(vf), "-an",
+                       "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-r", fps, dst])
+        return common.probe(dst)["duration"], None
+
+    kind, amt, fx, fy = parsed
+    if kind == "punch":
+        base = dst.with_name(dst.stem + "_fit.png")
+        _render_fitted_frame(src, base, fit, bg, w, h)
+        vf = zoom_filters(e.get("zoom"), dur, w=w, h=h) + extra + [f"setsar=1,fps={fps},format=yuv420p"]
+        common.ffmpeg(["-y", "-loop", "1", "-t", f"{dur:.3f}", "-i", base, "-vf", ",".join(vf), "-an",
+                       "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-r", fps, dst])
+        return common.probe(dst)["duration"], None
+
+    # Supersample to 2x canvas first so zoompan produces silky sub-pixel Ken Burns motion with zero jitter.
+    sw, sh = w * 2, h * 2
+    base = dst.with_name(dst.stem + "_2x.png")
+    _render_fitted_frame(src, base, fit, bg, sw, sh)
+    n_frames = max(2, int(round(dur * fps)))
+    denom = n_frames - 1
+    cx_focal = f"max(0,min(iw-iw/zoom,iw*{fx:.4f}-iw/zoom/2))"
+    cy_focal = f"max(0,min(ih-ih/zoom,ih*{fy:.4f}-ih/zoom/2))"
+    if kind == "push":
+        z_expr = f"min(1+{amt:.4f}*on/{denom},{1 + amt:.4f})"
+        x_expr, y_expr = cx_focal, cy_focal
+    elif kind == "pull":
+        z_expr = f"max(1,{1 + amt:.4f}-{amt:.4f}*on/{denom})"
+        x_expr, y_expr = cx_focal, cy_focal
+    else:
+        z_expr = f"{1 + amt:.4f}"
+        if kind == "pan-right":
+            x_expr, y_expr = f"(iw-iw/zoom)*on/{denom}", cy_focal
+        elif kind == "pan-left":
+            x_expr, y_expr = f"(iw-iw/zoom)*(1-on/{denom})", cy_focal
+        elif kind == "pan-down":
+            x_expr, y_expr = cx_focal, f"(ih-ih/zoom)*on/{denom}"
+        else:  # pan-up
+            x_expr, y_expr = cx_focal, f"(ih-ih/zoom)*(1-on/{denom})"
+
+    zp = f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':d={n_frames}:s={w}x{h}:fps={fps}"
+    vf = [zp, *extra, "setsar=1", "format=yuv420p"]
+    common.ffmpeg(["-y", "-i", base, "-vf", ",".join(vf), "-an",
+                   "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-r", fps, dst])
+    return common.probe(dst)["duration"], None
+
+
 def normalize(src: Path, dst: Path, e: dict, keep_audio: bool, w=W, h=H, fps=FPS):
+    if is_image(src):
+        return normalize_still(src, dst, e, w=w, h=h, fps=fps)
     info = common.probe(src)
     t_in = float(e.get("in") or 0)
     t_out = e.get("out")
+    if t_out in (None, "") and e.get("duration") not in (None, ""):
+        t_out = t_in + float(e["duration"])
     t_out = min(float(t_out), info["duration"]) if t_out not in (None, "") else info["duration"]
     seg = max(0.2, t_out - t_in)
     speed = float(e.get("speed") or 1.0)
-    vf = []
-    if abs(speed - 1) > 1e-3:
-        vf.append(f"setpts=PTS/{speed}")
-    vf.append(f"scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},setsar=1")
-    vf += zoom_filters(e.get("zoom"), seg / speed, w=w, h=h)
+    out_dur = seg / speed
+    fit = str(e.get("fit") or "cover").strip().lower()
+    if fit not in ("cover", "contain", "blur"):
+        common.die(f"unknown fit mode '{fit}' (cover|contain|blur)")
+    bg = _fit_color(e.get("bg") or "#0B0E14")
+    post_vf = zoom_filters(e.get("zoom"), out_dur, w=w, h=h)
     if e.get("hflip"):
-        vf.append("hflip")
-    vf.append(f"fps={fps},format=yuv420p")
-    common.ffmpeg(["-y", "-ss", f"{t_in:.3f}", "-t", f"{seg:.3f}", "-i", src, "-vf", ",".join(vf), "-an",
-                   "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-r", fps, dst])
+        post_vf.append("hflip")
+    post_vf += _fade_filters(e, out_dur)
+    post_vf.append(f"setsar=1,fps={fps},format=yuv420p")
+
+    if fit == "blur" and common.has_filter("boxblur"):
+        pts = f"setpts=PTS/{speed}," if abs(speed - 1) > 1e-3 else ""
+        bright = ",eq=brightness=-0.12" if common.has_filter("eq") else ""
+        fc = (f"[0:v]{pts}split=2[b0][f0];"
+              f"[b0]scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},boxblur=24:2{bright}[bg];"
+              f"[f0]scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos[fg];"
+              f"[bg][fg]overlay=(W-w)/2:(H-h)/2,{','.join(post_vf)}[vout]")
+        common.ffmpeg(["-y", "-ss", f"{t_in:.3f}", "-t", f"{seg:.3f}", "-i", src, "-filter_complex", fc,
+                       "-map", "[vout]", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-r", fps, dst])
+    else:
+        vf = []
+        if abs(speed - 1) > 1e-3:
+            vf.append(f"setpts=PTS/{speed}")
+        vf.append(_fit_simple_vf("contain" if fit == "blur" else fit, bg, w, h))
+        vf += post_vf
+        common.ffmpeg(["-y", "-ss", f"{t_in:.3f}", "-t", f"{seg:.3f}", "-i", src, "-vf", ",".join(vf), "-an",
+                       "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-r", fps, dst])
     audio = None
     if keep_audio and info["has_audio"]:
         if speed < 1.0 - 1e-3 and not e.get("keep_slow_audio"):
@@ -109,12 +308,9 @@ def normalize(src: Path, dst: Path, e: dict, keep_audio: bool, w=W, h=H, fps=FPS
     return common.probe(dst)["duration"], audio
 
 
-def still_clip(img: Path, dst: Path, dur: float, fit="cover", w=W, h=H, fps=FPS):
-    vf = (f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}" if fit == "cover" else
-          f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black")
-    common.ffmpeg(["-y", "-loop", "1", "-t", f"{dur:.3f}", "-i", img, "-vf", f"{vf},setsar=1,fps={fps},format=yuv420p",
-                   "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-r", fps, dst])
-    return common.probe(dst)["duration"]
+def still_clip(img: Path, dst: Path, dur: float, fit="cover", bg="black", w=W, h=H, fps=FPS):
+    d, _ = normalize_still(img, dst, {"duration": dur, "fit": fit, "bg": bg}, w=w, h=h, fps=fps)
+    return d
 
 
 def join(segs, out: Path, fps=FPS):
@@ -122,7 +318,7 @@ def join(segs, out: Path, fps=FPS):
     if n == 1:
         shutil.copy(segs[0]["file"], out)
         return [0.0], segs[0]["dur"]
-    if all((s.get("trans") or {}).get("type", "cut") == "cut" for s in segs[1:]):
+    if all(parse_transition(s.get("trans")).get("type", "cut") == "cut" for s in segs[1:]):
         lst = out.with_suffix(".txt")
         lst.write_text("".join(f"file '{Path(s['file']).resolve()}'\n" for s in segs), encoding="utf-8")
         common.ffmpeg(["-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", out])
@@ -137,7 +333,7 @@ def join(segs, out: Path, fps=FPS):
         parts.append(f"[{k}:v]setpts=PTS-STARTPTS,fps={fps},format=yuv420p,settb=AVTB[i{k}]")  # same timebase everywhere
     cur, length, starts = "[i0]", segs[0]["dur"], [0.0]
     for k in range(1, n):
-        tr = segs[k].get("trans") or {}
+        tr = parse_transition(segs[k].get("trans"))
         kind, td = tr.get("type", "cut"), float(tr.get("duration", 0.25))
         if kind != "cut" and kind not in XFADES:
             common.log(f"note: transition '{kind}' unknown -> using fade")
@@ -391,24 +587,27 @@ def main():
     segs, shot_ids = [], []
     for shot in spec.shots():
         e = shot.get("edit") or {}
-        dur, wav = normalize(resolve_clip(spec, shot), tmp / f"{shot['id']}.mp4", e, bool(mixcfg["keep_clip_audio"]),
+        src_path, _ = resolve_source(spec, shot)
+        dur, wav = normalize(src_path, tmp / f"{shot['id']}.mp4", e, bool(mixcfg["keep_clip_audio"]),
                              w=w, h=h, fps=fps)
         vol = e.get("clip_audio_volume", mixcfg["clip_audio_volume"])
-        segs.append({"id": shot["id"], "file": tmp / f"{shot['id']}.mp4", "dur": dur, "trans": e.get("transition"),
-                     "audio": wav, "vol": float(vol)})
+        segs.append({"id": shot["id"], "file": tmp / f"{shot['id']}.mp4", "dur": dur,
+                     "trans": parse_transition(e.get("transition")), "audio": wav, "vol": float(vol)})
         shot_ids.append(shot["id"])
     if not segs:
         common.die("spec has no shots")
     end = S.get("end_card")
     if end and end.get("file"):
-        f = spec.p(end["file"])
+        f = Path(spec.p(end["file"]))
         dst = tmp / "end_card.mp4"
-        if str(f).lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
-            d = still_clip(Path(f), dst, float(end.get("duration", 1.5)), end.get("fit", "cover"), w=w, h=h, fps=fps)
+        if is_image(f):
+            d = still_clip(f, dst, float(end.get("duration", 1.5)), end.get("fit", "cover"),
+                           end.get("bg", "black"), w=w, h=h, fps=fps)
         else:
-            d, _ = normalize(Path(f), dst, {"out": end.get("duration")}, False, w=w, h=h, fps=fps)
+            d, _ = normalize(f, dst, {"out": end.get("duration"), "fit": end.get("fit", "cover")}, False, w=w, h=h, fps=fps)
         segs.append({"id": "end_card", "file": dst, "dur": d,
-                     "trans": end.get("transition", {"type": "fade", "duration": 0.25}), "audio": None, "vol": 0})
+                     "trans": parse_transition(end.get("transition") or {"type": "fade", "duration": 0.25}),
+                     "audio": None, "vol": 0})
     if S.get("loop") and not (end and end.get("file")):
         ld = float(S.get("loop_fade", 0.3))
         first = tmp / "loop_first.png"
@@ -431,7 +630,7 @@ def main():
         if vo_end + 0.3 > dur:
             hold = round(vo_end + 0.3 - dur, 3)
             common.log(f"WARNING: voice-over ends at {vo_end:.2f}s but the edit is {dur:.2f}s -> holding the last frame "
-                       f"{hold:.2f}s. Better: lengthen shots (edit.out/speed), add an end card, or tighten the script.")
+                       f"{hold:.2f}s. Better: lengthen shots (edit.duration/out/speed), add an end card, or tighten the script.")
     total = dur + hold
 
     ass = None

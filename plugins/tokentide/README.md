@@ -4,7 +4,7 @@ Tokentide is the daily sale on AI inference: frontier and private AI models belo
 list price) through one OpenAI-compatible API, with zero data retention at Tokentide. The price follows a tide table
 published in advance and falls through the UTC day, an opt-in Low Tide lane is cheaper still for work that can wait,
 and the supply is limited and renews every day at 00:00 UTC. This plugin connects Claude, ChatGPT or Codex to your
-Tokentide account and adds a skill that turns a product into short-form videos.
+Tokentide account and adds a universal studio-grade video skill (`professional-video`).
 
 Building an app on Tokentide? Make it your first provider and keep your current one as the fallback: whenever
 Tokentide can't serve a request (today's supply sold out, no credit, a spend cap, a rate limit or an incident), your
@@ -19,13 +19,16 @@ Gemini and other providers is at https://tokentide.app/docs/fallback.
   usage, run chat, embeddings and decision requests under your own price caps, generate and edit
   images, create video and music jobs (finished files come back as download links), and link the video
   skill's scripts to your account.
-- **Professional video skill** (`skills/professional-video`). Your agent researches a product, writes
-  a virality strategy, then plans, generates, edits, checks and packages vertical videos for TikTok,
-  Instagram Reels and X with Tokentide's image, video, voice and music models and FFmpeg. It first asks
-  whether you name the models or want a recommendation: three levels (Essential, Pro, Max) built from the
-  newest models on Tokentide, the Arena leaderboard's quality ratings for video and images (the skill's own
-  estimate for voice and music) and Tokentide's prices. Either way you get
-  the total price before anything is made.
+- **Professional video skill** (`skills/professional-video`). Produces any kind of studio-grade video
+  (`16:9`, `9:16` or `1:1`) — films, personal stories, app/SaaS walkthroughs and tutorials, commercials,
+  explainers, trailers and social campaigns for YouTube, TikTok, Instagram Reels, X, LinkedIn or direct
+  delivery — with Tokentide's image, video, voice and music models and FFmpeg. It grounds every real
+  visual anchor first (asking for multi-angle reference photos for real subjects, capturing live apps or
+  sites via browser or computer-use tools — pausing at the login screen when gated — or locking style
+  sheets), and always asks whether you name the models or want a recommendation: three levels
+  (Essential, Pro, Max) built from the newest models on Tokentide, the Arena leaderboard's quality
+  ratings for video and images (the skill's own estimate for voice and music) and Tokentide's prices.
+  Either way you get the total price before anything is made.
 
 One package serves every host: `.claude-plugin/plugin.json` and `.mcp.json` describe it to Claude;
 `plugin.json` and `mcp.json` (the portable Agent Plugins format, with OpenAI's listing and sign-in

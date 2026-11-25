@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Image generation & editing through Tokentide (Venice-compatible): keyframes, product composites, cutouts, upscales.
+"""Image generation & editing through Tokentide (Venice-compatible): keyframes, subject composites, cutouts, upscales.
 
 Tokentide notes: bodies are capped at 4.5 MB (inputs are shrunk to fit; public https URLs pass through),
 image requests are paced to the account limit (4/min on new accounts), and safe_mode is always on.
 
 Subcommands (`image.py <cmd> -h` for options):
-  generate    text-to-image (scenes, backgrounds, product-free shots)  POST /image/generate
-  edit        one image + instruction (restyle a real product photo)   POST /image/edit
-  multi-edit  2-3 images, e.g. [scene, product cutout] composite        POST /image/multi-edit
-  bg-remove   product cutout with alpha                                 POST /image/background-remove
-  upscale     2x/4x upscale, optional enhance                           POST /image/upscale
-  styles      list style presets                                        GET  /image/styles
-  frame       fit a real photo into a 9:16 keyframe (local, free)
+  generate    text-to-image (scenes, backgrounds, style masters)            POST /image/generate
+  edit        one image + instruction (restyle a real photo)                POST /image/edit
+  multi-edit  2-8 images (e.g. [scene, person_a, person_b] or [scene, obj]) POST /image/multi-edit
+  bg-remove   subject/product cutout with alpha                             POST /image/background-remove
+  upscale     2x/4x upscale, optional enhance                               POST /image/upscale
+  styles      list style presets                                            GET  /image/styles
+  frame       fit a real image into a canvas keyframe (local, free)
   keyframes   run every shots[].keyframe job in a video spec, in parallel, + contact sheet
   select      mark a keyframe candidate as selected in the spec
 
@@ -33,6 +33,19 @@ import apiclient as api
 FIDELITY = ("Keep the product exactly as in the reference image: identical shape, proportions, materials, colors, "
             "label text, logo and their placement. Do not add, remove or alter any text or logo. "
             "Photorealistic, product in sharp focus.")
+FIDELITY_PERSON = ("Preserve every person's exact facial features, bone structure, eyes, hair, skin tone, age, build, "
+                   "and likeness from the reference photo(s) with maximum accuracy. Maintain natural skin texture, "
+                   "realistic anatomy, and faithful relative proportions. Do not add any unintended text.")
+FIDELITY_SUBJECT = ("Keep the subject(s) faithfully matched to the reference image(s): identical appearance, proportions, "
+                    "details, materials, and colors. Do not invent, remove, or alter any text or logos. "
+                    "Photorealistic, sharp focus.")
+FIDELITY_CLAUSES = {
+    "product": FIDELITY,
+    "person": FIDELITY_PERSON,
+    "people": FIDELITY_PERSON,
+    "subject": FIDELITY_SUBJECT,
+    "none": "",
+}
 AR_DIMS = {"9:16": (768, 1344), "16:9": (1344, 768), "1:1": (1024, 1024), "4:5": (896, 1120),
            "5:4": (1120, 896), "3:4": (960, 1280), "4:3": (1280, 960), "2:3": (832, 1248), "3:2": (1248, 832)}
 DROPPABLE = ("variants", "negative_prompt", "style_preset", "cfg_scale", "steps", "quality", "resolution",
@@ -170,6 +183,38 @@ def report(results):
         sys.exit(1)
 
 
+def infer_fidelity(kf: dict | None, inputs: list, *, explicit: str | None = None, no_lock: bool = False) -> str:
+    """Resolve which fidelity clause to append: explicit `fidelity` > `no_lock`/`lock_product` > path hint > subject."""
+    if no_lock:
+        return "none"
+    raw = explicit or (kf.get("fidelity") if isinstance(kf, dict) else None)
+    if raw is not None:
+        mode = str(raw).strip().lower()
+        if mode != "auto":
+            if mode not in FIDELITY_CLAUSES:
+                common.die(f"Unknown fidelity mode '{raw}' (use auto|product|person|subject|none)")
+            return mode
+    if isinstance(kf, dict) and "lock_product" in kf:
+        return "product" if kf["lock_product"] else "none"
+    parts = [p.lower() for x in (inputs or []) if isinstance(x, (str, Path)) and not str(x).startswith(("http", "data:"))
+             for p in Path(x).parts]
+    if "people" in parts:
+        return "person"
+    if "product" in parts:
+        return "product"
+    return "subject"
+
+
+def add_fidelity(prompt: str, mode: str = "product") -> str:
+    clause = FIDELITY_CLAUSES.get((mode or "product").lower(), FIDELITY)
+    if not clause:
+        return prompt
+    if re.search(r"(do not (alter|change)|exactly as|unchanged|identical|exact facial features|preserve .* likeness)",
+                 prompt, re.I):
+        return prompt
+    return prompt.rstrip(". ") + ". " + clause
+
+
 # ---------------------------------------------------------------- subcommands
 def cmd_generate(a):
     root_for(a.out, a)
@@ -212,7 +257,9 @@ def cmd_generate(a):
 
 
 def edit_body(a, multi=False):
-    prompt = a.prompt if a.no_lock else add_fidelity(a.prompt)
+    inputs = a.images if multi else [a.image]
+    mode = infer_fidelity(None, inputs, explicit=getattr(a, "fidelity", None), no_lock=a.no_lock)
+    prompt = add_fidelity(a.prompt, mode)
     if multi:
         body = {"modelId": a.model, "prompt": prompt,
                 "images": [api.encode_image(x, mode=a.encoding, max_bytes=api.per_image_budget(len(a.images)))
@@ -223,12 +270,6 @@ def edit_body(a, multi=False):
     body.update({k: v for k, v in opt.items() if v is not None})
     body.update(common.kv_pairs(a.set))
     return body
-
-
-def add_fidelity(prompt: str) -> str:
-    if re.search(r"(do not (alter|change)|exactly as|unchanged|identical)", prompt, re.I):
-        return prompt
-    return prompt.rstrip(". ") + ". " + FIDELITY
 
 
 def cmd_edit(a, multi=False):
@@ -300,14 +341,14 @@ def keyframe_jobs(spec, shot, n):
             common.die(f"{shot['id']}: keyframe input not found: {x}")
     if mode in ("generate", "edit", "multi-edit") and not (model and prompt):
         common.die(f"{shot['id']}: keyframe mode '{mode}' needs model and prompt")
-    lock = kf.get("lock_product", mode in ("edit", "multi-edit"))
-    if lock and mode in ("edit", "multi-edit"):
-        prompt = add_fidelity(prompt)
+    if mode in ("edit", "multi-edit"):
+        fmode = infer_fidelity(kf, inputs)
+        prompt = add_fidelity(prompt, fmode)
     extra = kf.get("extra") or {}
     if mode == "generate":
         if re.search(r"\b(product|bottle|package|label|logo)\b", prompt, re.I) and not kf.get("allow_invented_product"):
-            common.log(f"WARNING {shot['id']}: 'generate' invents the product. Use multi-edit with a real product photo "
-                       "for product shots (set allow_invented_product=true to silence).")
+            common.log(f"WARNING {shot['id']}: 'generate' invents the product. Use multi-edit with a real reference photo "
+                       "for real products/subjects (set allow_invented_product=true to silence).")
         body = {"model": model, "prompt": prompt, "aspect_ratio": ar, "hide_watermark": True}
         for k in ("negative_prompt", "resolution", "style_preset", "seed", "quality"):
             if kf.get(k) is not None:
@@ -319,8 +360,13 @@ def keyframe_jobs(spec, shot, n):
             common.die(f"{shot['id']}: edit mode needs exactly 1 input image")
         body = {"model": model, "prompt": prompt, "image": api.encode_image(inputs[0]), "aspect_ratio": ar}
     elif mode == "multi-edit":
-        if not 2 <= len(inputs) <= 3:
-            common.die(f"{shot['id']}: multi-edit needs 2-3 input images (e.g. [scene, product cutout])")
+        if not 2 <= len(inputs) <= 8:
+            common.die(f"{shot['id']}: multi-edit needs 2-8 input images (e.g. [scene, ref1, ref2])")
+        entry = common.load_models(spec.root).get(model) if spec.root else None
+        caps = common.spec_lookup(entry or {}, "maxinputimages", "max_input_images")
+        mx = [int(v) for v in caps.values() if isinstance(v, (int, float))]
+        if mx and len(inputs) > mx[0]:
+            common.log(f"WARNING {shot['id']}: {model} lists maxInputImages={mx[0]}, got {len(inputs)} inputs")
         body = {"modelId": model, "prompt": prompt,
                 "images": [api.encode_image(x, max_bytes=api.per_image_budget(len(inputs))) for x in inputs],
                 "aspect_ratio": ar}
@@ -341,6 +387,7 @@ def cmd_keyframes(a):
     kdir = spec.root / "keyframes"
     kdir.mkdir(exist_ok=True)
     work = []
+    local_updates = {}
     for shot in spec.shots(a.shots):
         kf = shot.get("keyframe")
         if not kf:
@@ -354,7 +401,7 @@ def cmd_keyframes(a):
         if mode in ("frame", "file"):
             src = spec.p((kf.get("inputs") or [None])[0])
             if not src or not Path(src).exists():
-                common.die(f"{shot['id']}: mode '{mode}' needs inputs[0] (a real photo)")
+                common.die(f"{shot['id']}: mode '{mode}' needs inputs[0] (a real image)")
             dst = kdir / f"{prefix}_k{next_index(kdir, prefix)}.png"
             if mode == "frame":
                 cv = common.canvas_for(spec=spec)
@@ -362,8 +409,14 @@ def cmd_keyframes(a):
             else:
                 shutil.copy(src, dst.with_suffix(Path(src).suffix))
                 dst = dst.with_suffix(Path(src).suffix)
-            kf.setdefault("candidates", []).append(spec.rel(dst))
-            print(f"{shot['id']}: {dst}")
+            rel_dst = spec.rel(dst)
+            cands = kf.setdefault("candidates", [])
+            if rel_dst not in cands:
+                cands.append(rel_dst)
+            if not kf.get("selected"):
+                kf["selected"] = rel_dst
+            local_updates[shot["id"]] = (list(cands), kf.get("selected"))
+            print(f"{shot['id']}: {dst} (selected)")
             continue
         path, body = keyframe_jobs(spec, shot, n)
         start = next_index(kdir, prefix)
@@ -387,12 +440,15 @@ def cmd_keyframes(a):
         sheet = spec_fresh.root / "qa" / f"{spec_fresh.vid}_{sid}_keyframes.jpg"
         qa.make_sheet([str(spec_fresh.p(c)) for c in cands], sheet, labels=[Path(c).stem for c in cands])
         print(f"{sid}: {len(paths)} new -> {', '.join(Path(p).name for p in paths)}  | sheet: {spec_fresh.rel(sheet)}")
-    for shot in spec.shots(a.shots):  # carry over frame/file candidates added above
-        if shot.get("keyframe", {}).get("mode") in ("frame", "file"):
-            spec_fresh.shot(shot["id"])["keyframe"]["candidates"] = shot["keyframe"]["candidates"]
+    for sid, (cands, sel) in local_updates.items():
+        kf = spec_fresh.shot(sid).setdefault("keyframe", {})
+        kf["candidates"] = cands
+        if sel:
+            kf["selected"] = sel
     spec_fresh.save()
-    print("Next: look at each sheet next to the real product photo, then "
-          "`image.py select --spec ... --shot sN --k K` (rubric: references/qa-rubric.md).")
+    if by_shot:
+        print("Next: inspect each contact sheet side-by-side with your reference photos, then "
+              "`image.py select --spec ... --shot sN --k K` (rubric: references/qa-rubric.md).")
     if any(isinstance(r, Exception) for r in results) and not by_shot:
         sys.exit(1)
 
@@ -445,15 +501,17 @@ def main():
         e.add_argument("--model", required=True)
         e.add_argument("--prompt", required=True)
         if multi:
-            e.add_argument("--images", nargs="+", required=True, help="2-3 images, e.g. scene.png product_cutout.png")
+            e.add_argument("--images", nargs="+", required=True, help="2-8 images, e.g. scene.png ref1.jpg ref2.jpg")
         else:
             e.add_argument("--image", required=True)
-        e.add_argument("--aspect-ratio", default="9:16", help="e.g. 9:16 or auto")
+        e.add_argument("--aspect-ratio", default="9:16", help="e.g. 9:16, 16:9, 1:1 or auto")
         e.add_argument("--resolution")
         e.add_argument("--quality")
         e.add_argument("--format", choices=["png", "jpeg", "webp"])
         e.add_argument("--encoding", default="base64", choices=["base64", "data-url"])
-        e.add_argument("--no-lock", action="store_true", help="don't append the product-fidelity clause")
+        e.add_argument("--fidelity", choices=["auto", "product", "person", "people", "subject", "none"],
+                       help="subject fidelity clause to append (default: auto from input folder)")
+        e.add_argument("--no-lock", action="store_true", help="don't append any fidelity clause")
         common_out(e)
 
     b = sub.add_parser("bg-remove")

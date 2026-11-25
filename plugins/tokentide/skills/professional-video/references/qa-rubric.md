@@ -1,64 +1,89 @@
 # QA rubric and regenerate rules
 
-QA happens three times: keyframes (cheap — fix problems here), clips (before editing), final render
-(before packaging). The decisive check is visual: open the contact sheets and safe-zone frames and
-compare them with the real product photos. `qa.py vision` gives a second opinion for batch runs.
+QA runs at **four gates**: (0) visual anchors & captures before spec writing, (1) keyframes (cheap — fix
+identity, subject, UI or aesthetic flaws here), (2) generated video takes (before editing), and (3) final
+rendered master (before delivery). Visual inspection is always decisive: open contact sheets and
+safe-zone frames side by side with the real references. `qa.py vision --mode <auto|general|people|product|app>`
+provides a structured second opinion for batch runs.
 
-## 1. Keyframe rubric (score 0–5; view the sheet next to the reference photo)
+## 1. Anchor & keyframe rubric (score 0–5; inspect side-by-side against references)
+
+### 1A. Universal craft & subject fidelity (`qa.py vision --mode general` — applies to EVERY video)
 | Criterion | 5 means | Reject if |
 |---|---|---|
-| Product shape & proportions | indistinguishable from the photo | < 4 |
-| Label & logo | text and logo correct, legible, right place | < 4 (or composite the real logo/packshot later) |
-| Colour match | matches the hex palette under the scene light | < 4 |
-| Hands / people | natural anatomy, no extra fingers | < 3 |
-| Artifacts | no melting, duplicates, warped edges, floating objects | < 4 |
-| Stray text | no invented text anywhere | < 4 |
-| Composition | clear subject, room for captions, works as frame 1 | < 3 |
-Pass → `image.py select`. Fail → regenerate with a fix (below). After two failed rounds change the
-approach: different edit model (Alt premium), simpler scene, product photo from a better angle, or
-`frame` mode with the real photo.
+| Subject / style fidelity | faithfully matches reference photos, Style Master, or Character Sheet | < 4 |
+| Visual craft & realism | intentional framing, coherent light direction & color palette, zero cheap "AI sheen" | < 4 |
+| Anatomy & geometry | natural hands, faces, architecture, perspective and proportions | < 4 (people) / < 3 (background) |
+| Artifacts & stray text | zero melting, duplicates, warped edges, floating objects or invented text | < 4 |
+| Composition & safe area | clear focal hierarchy, room for titles/captions, nothing clipped | < 3 |
 
-## 2. Clip rubric (`qa.py frames clip.mp4 --every 0.5`, view the sheet)
+### 1B. Additional checks for identifiable real beings (`qa.py vision --mode people`)
+- **Facial / subject likeness (≥4 required):** unmistakable match to each reference photo (eyes, nose,
+  jawline, hair, age, skin tone, or pet markings).
+- **Group proportions & rapport (≥4):** relative height, build and natural posture match real photos.
+- **Naturalism:** realistic skin texture and eye-line; zero plastic airbrushing.
+
+### 1C. Additional checks for readable interfaces, documents & data (`qa.py vision --mode app`)
+- **Pixel-accurate UI/text fidelity (5/5 required):** zero AI-warped buttons, labels, code or numbers.
+- **Mobile legibility (≥4):** focal controls and numbers remain readable at 50% scale (or paired with a
+  tight zoomed crop).
+- **Clean viewport & zero privacy leaks (5/5 required):** zero loading spinners, cookie popups, dev
+  toolbars, real personal emails, API keys, tokens or private records.
+- **Flow continuity (≥4):** consecutive captures progress logically without missing steps.
+
+### 1D. Additional checks for physical products & brands (`qa.py vision --mode product`)
+- **Shape, proportions, materials & color match (≥4):** indistinguishable from the real product photos.
+- **Label & logo accuracy (≥4):** exact text/logo placement (or composite the real logo cleanly in post).
+
+Pass → `image.py select`. Fail → regenerate with a concrete fix (§4). After two failed rounds, change
+strategy (different edit model, better reference photo, simpler scene, or real photo/footage).
+
+## 2. Generated clip rubric (`qa.py frames clip.mp4 --every 0.5`, inspect the sheet)
 Same criteria per frame, plus:
 | Criterion | Reject if |
 |---|---|
-| Temporal stability | product morphs, label crawls, flicker, popping between frames |
-| Motion matches the prompt | wrong action or camera move that breaks the beat |
-| Physics | liquids/fabric/objects behave impossibly (unless intended) |
-| Usable window | fewer than ~2 clean seconds to cut from |
-| Faces/people | uncanny, identity drift, or resembles a real person |
-A take is usable if it has a clean 2–4 s window — set `edit.in/out` around it. Pick with
-`video.py select --shot sN --take K`.
+| Temporal & identity stability | face/character drifts, product/architecture morphs, flicker or popping |
+| Motion matches direction | awkward gesture, wrong camera move, or unnatural speed |
+| Physics & naturalism | impossible hair/liquid/hand/cloth motion or stiff uncanny animation |
+| Usable clean window | fewer than ~2 clean seconds to cut from |
 
-## 3. Final render checks
-1. `qa.py check renders/<vid>_master.mp4 --spec briefs/<vid>.json` → no FAIL: matches the spec's canvas
-   (`1080×1920` for 9:16, `1920×1080` for 16:9, `1080×1080` for 1:1), 30 fps, H.264/yuv420p, audio present,
-   duration near target, no black frames at the start, loudness within ±2 LU of target (default −14 LUFS),
-   true peak ≤ −1 dBTP. Frozen-frame warnings: look at that span.
-2. `qa.py frames … --every 1` → watch the story in the sheet: hook visible at 0.3 s, payoff by ~70%,
-   CTA, captions matching speech, logo/label placement.
-3. `qa.py safezone … --t 1.0` (and a frame with the CTA) → no text or logo in red/orange zones.
-4. Listen (or check waveform via loudness): VO clear above music, no clipping, no abrupt cuts.
-5. Compliance pass: AI label/disclosure present when realistic AI is used; every claim in VO/captions
-   is in `claims[]` with evidence (package.py blocks unsubstantiated wording).
+Pick the take with the cleanest 2–5 s window (`video.py select --shot sN --take K`) and trim `edit.in/out`.
+
+## 3. Final render checks (mandatory gate before delivery)
+1. `qa.py check renders/<vid>_master.mp4 --spec briefs/<vid>.json` → **zero FAIL**: exact target canvas
+   (`1920×1080`, `1080×1920`, or `1080×1080`), 30 fps, H.264/yuv420p, audio present, duration near target,
+   zero black frames at 0 s, loudness within ±2 LU of target (−14 LUFS), true peak ≤ −1 dBTP. Check any
+   frozen-frame warnings (ensure still shots have subtle smooth Ken Burns motion!).
+2. `qa.py frames renders/<vid>_master.mp4 --every 1` → watch the entire story across the contact sheet:
+   compelling frame 1 at 0.3 s, real subjects unmistakable, readable screens razor-sharp, coherent palette
+   and pacing across cuts, captions synced to speech (when enabled), zero PII/watermark leaks.
+3. `qa.py safezone renders/<vid>_master.mp4 --spec briefs/<vid>.json --t 1.0` (plus a captioned frame and
+   ending frame) → zero text, faces or logos trapped inside red/orange UI margins.
+4. Audio check: clear VO above ducked music (or balanced standalone score), zero `atempo` stutters, clean
+   cuts, smooth fade-out.
+5. Compliance check: realistic AI disclosed when publishing, consent confirmed for real people, factual
+   claims documented in `claims[]`.
 
 ## 4. Regenerate decision tree
 ```
-problem in keyframe? ── yes ─▶ fix keyframe first (cheapest) ─▶ re-animate
+problem in reference / capture? ── yes ─▶ re-capture cleanly (fix zoom/crop/chrome) or request clearer photo
         │ no
-product morphs / label crawls ─▶ shorter duration (4–5 s), slower or locked-off camera,
-                                 one action, hands away from label ─▶ still bad: Alt premium model
-wrong motion ─▶ rewrite motion prompt with timed beats; add end_image for the landing pose
-people look uncanny ─▶ crop tighter on product/hands, or switch to a people-strong family (Kling/Veo)
-422 content violation ─▶ remove brand names/real people from the prompt; describe generically
-409 needs_consent (Seedance) ─▶ remove faces or switch family
-2 failed takes with the same approach ─▶ change the approach, don't re-roll
+problem in keyframe? ── yes ─▶ fix keyframe first (cheapest: refine prompt, add reference angle, switch edit model)
+        │ no
+identity / subject drifts in clip ─▶ lock start + end keyframes via multi-edit, use Kling/Veo/@r2v (elements /
+                                     reference_images), keep 4–5 s, gentle front/3-4 camera motion
+UI / readable text warps ─▶ STOP using @i2v on UI/text! Use shots[].image + targeted focal edit.zoom / edit.fit
+product / object morphs ─▶ shorten to 4–5 s, slower/locked camera, single action, hands off label ─▶ Alt premium model
+wrong motion ─▶ rewrite motion prompt with timed beats (0–2s / 2–4s); add end_image for landing pose
+422 content violation ─▶ remove third-party brands or celebrity references; describe neutrally
+409 needs_consent (Seedance) ─▶ Seedance -basic rejects people: switch video model to Kling or Veo!
+2 failed takes with same approach ─▶ change strategy, never blindly re-roll
 ```
 
 ## 5. Cost guardrails
-- Quote first (`video.py run --dry-run`); the run aborts above `budget_usd` or the project cap.
-- Spend per shot ≤ 3× its quoted price; beyond that, change approach or ask the user.
-- Draft on Budget models at 720p for hook tests; re-generate winners on Balanced/Premium at 1080p.
-- Tokentide: non-urgent batches are cheapest late in the UTC day or on `--lane lowtide`; failed jobs
-  are refunded automatically, but a job that's never retrieved stays charged — always finish polling.
-- `budget.py --project …` shows spend (video quotes + image estimates) vs. the cap.
+- Quote first (`video.py run --dry-run`); aborts above `budget_usd` or project cap.
+- Real captures, authentic photos and crisp custom graphics animated with `assemble.py` cost **$0** in
+  visual generation — invest budget where generative cinema genuinely adds magic!
+- Spend per generative shot ≤ 3× its quoted price; beyond that, change strategy or ask the user.
+- Batch non-urgent work late in the UTC day or with `--lane lowtide`; always finish polling retrieved jobs.
+- `budget.py --project P` reports exact spend vs. cap.

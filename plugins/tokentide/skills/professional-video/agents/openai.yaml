@@ -1,8 +1,8 @@
 interface:
   display_name: "Professional video"
-  short_description: "Research a product and make professional videos for YouTube, TikTok, Reels and X"
+  short_description: "Produce any kind of studio-grade, visually grounded video (16:9, 9:16, 1:1)"
   brand_color: "#00848B"
-  default_prompt: "Research our product and make professional videos for YouTube, TikTok, Instagram Reels and X with Tokentide."
+  default_prompt: "Create a professional, visually grounded video with Tokentide — gather the references or live captures needed first, show the model options and price up front, then produce and package the final video."
 
 dependencies:
   tools:

@@ -28,9 +28,11 @@ would send it to a friend** (shareability). Everything below serves those three.
   Note dates on everything trend-related.
 - **Triangulate.** A pain mentioned once is an anecdote; across 3+ sources it is a pattern. Rank
   clusters by frequency × intensity.
-- **Respect boundaries.** Use public pages. Don't scrape behind logins, don't collect personal data
-  about reviewers (keep site + date + rating, not names), and don't use a browser on logged-in
-  platforms unless the user explicitly allows it.
+- **Respect boundaries & login handoff.** For market/competitor research, use public pages and don't
+  collect personal data about reviewers (keep site + date + rating, not names). When capturing a video
+  guide or walkthrough of the user's own (or target) gated app, use the Login Handoff Protocol in
+  `references/visual-grounding.md` §3.2: open the login screen in the agent's browser, let the user sign
+  in themselves (never ask for passwords/tokens in chat), then resume capture.
 - **Budget the effort.** Full campaign: 25–60 searches + fetches, ≥25 distinct sources. Quick test
   mode: ~10 searches, 15 quotes, label everything as provisional.
 

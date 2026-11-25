@@ -358,8 +358,8 @@ class Mock(BaseHTTPRequestHandler):
             return self._send(200, {"id": "gen", "images": [base64.b64encode(MEDIA["img.png"]).decode()] * n_img},
                               charge=self._charge(0.06 * n_img))
         if p == "/image/multi-edit":
-            if "modelId" not in b or not 2 <= len(b.get("images", [])) <= 3:
-                return self._send(400, {"error": "modelId and 2-3 images required"})
+            if "modelId" not in b or not 2 <= len(b.get("images", [])) <= 8:
+                return self._send(400, {"error": "modelId and 2-8 images required"})
             return self._send(200, MEDIA["img.png"], "image/png", charge=self._charge(0.23))
         if p in ("/image/edit", "/image/background-remove", "/image/upscale"):
             if not b.get("image"):
@@ -401,7 +401,8 @@ class Mock(BaseHTTPRequestHandler):
             if key:
                 STATE["idem"].add(key)
             allowed = {"model", "prompt", "negative_prompt", "duration", "resolution", "aspect_ratio", "audio",
-                       "image_url", "end_image_url", "seed", "duration_seconds", "force_instrumental", "voice"}
+                       "image_url", "end_image_url", "reference_image_urls", "elements", "seed", "duration_seconds",
+                       "force_instrumental", "voice"}
             bad = sorted(set(b) - allowed)
             if bad:
                 return self._err(400, "invalid_request", f"Unknown field {bad[0]}", param=bad[0])
@@ -854,6 +855,81 @@ def main():
     run("qa safezone 16:9", "qa.py", "safezone", root / "renders/v16_master.mp4", "--t", "1.0", expect=("16:9 1920x1080",))
     run("qa vision (mock)", "qa.py", "vision", "--images", root / "keyframes/v01_s1_k1.png", "--reference",
         root / "assets/product/front.jpg")
+
+    # Universal visual grounding tests: project folders, person/subject fidelity, 3+ multi-edit, R2V encoding,
+    # still-image shots with focal Ken Burns & blur/contain fit, mode-aware vision QA, and YouTube/personal packaging.
+    check("init_project creates universal grounding folders",
+          all((root / d).is_dir() for d in ("assets/people", "assets/captures", "assets/references", "assets/footage")))
+    (root / "assets/people/a").mkdir(parents=True, exist_ok=True)
+    (root / "assets/people/b").mkdir(parents=True, exist_ok=True)
+    ff(["-f", "lavfi", "-i", "testsrc2=size=800x1000:rate=1", "-frames:v", "1", root / "assets/people/a/front.jpg"])
+    ff(["-f", "lavfi", "-i", "testsrc2=size=800x1000:rate=1", "-frames:v", "1", root / "assets/people/b/front.jpg"])
+    ff(["-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=1", "-frames:v", "1", root / "assets/captures/01_screen.png"])
+    ff(["-f", "lavfi", "-i", "testsrc2=size=600x900:rate=1", "-frames:v", "1", root / "assets/references/vertical_photo.jpg"])
+    import image as IMG  # noqa: E402
+    import video as VID  # noqa: E402
+    check("fidelity auto-inference: people -> person, product -> product, other -> subject",
+          IMG.infer_fidelity({}, [root / "assets/people/a/front.jpg"]) == "person"
+          and IMG.infer_fidelity({}, [root / "assets/product/front.jpg"]) == "product"
+          and IMG.infer_fidelity({}, [root / "assets/references/vertical_photo.jpg"]) == "subject"
+          and "facial features" in IMG.add_fidelity("Standing in sunlight", "person")
+          and "product" not in IMG.add_fidelity("Standing in sunlight", "person").lower())
+    run("image multi-edit (3 inputs, person fidelity)", "image.py", "multi-edit", "--model", "@keyframe",
+        "--images", root / "assets/scenes/counter_k1.png", root / "assets/people/a/front.jpg", root / "assets/people/b/front.jpg",
+        "--prompt", "Place subjects from images 2 and 3 into image 1", "--out", root / "keyframes/multi_people")
+    r2v_spec_path = root / "briefs/v_r2v.json"
+    common.save_json(r2v_spec_path, {
+        "id": "vr2v", "title": "R2V encoding check", "aspect_ratio": "16:9", "platforms": ["personal"],
+        "shots": [{"id": "s1", "video": {
+            "model": "kling-o3-pro-reference-to-video", "prompt": "gentle push-in", "duration": "5s",
+            "reference_images": ["assets/people/a/front.jpg", "assets/people/b/front.jpg"],
+            "elements": [{"frontal_image_url": "assets/people/a/front.jpg", "reference_image_urls": ["assets/people/b/front.jpg"]}],
+        }}]
+    })
+    r2v_body, _ = VID.build_job(common.Spec(r2v_spec_path), common.Spec(r2v_spec_path).shot("s1"), common.load_models(root))
+    check("video.py encodes local reference_images and nested elements into data URLs",
+          len(r2v_body.get("reference_image_urls", [])) == 2
+          and all(str(u).startswith("data:image/") for u in r2v_body["reference_image_urls"])
+          and str(r2v_body["elements"][0]["frontal_image_url"]).startswith("data:image/")
+          and str(r2v_body["elements"][0]["reference_image_urls"][0]).startswith("data:image/"))
+    still_spec_path = root / "briefs/v_still.json"
+    common.save_json(still_spec_path, {
+        "id": "vstill", "title": "Real UI & photo walkthrough", "canvas": "16:9", "target_duration_s": 5,
+        "platforms": ["youtube", "personal"],
+        "shots": [
+            {"id": "s1", "image": "assets/captures/01_screen.png",
+             "edit": {"duration": 2.5, "fit": "cover", "zoom": {"type": "push", "amount": 0.22, "x": 0.78, "y": 0.30}}},
+            {"id": "s2", "keyframe": {"mode": "file", "inputs": ["assets/references/vertical_photo.jpg"]},
+             "edit": {"duration": 2.5, "fit": "blur", "zoom": "pan-up", "transition": "fade"}},
+        ],
+        "voiceover": {"enabled": False},
+        "captions": {"enabled": False},
+        "packaging": {
+            "keywords": ["walkthrough"],
+            "youtube": {"title": "Complete walkthrough guide", "description": "Step-by-step walkthrough.",
+                        "chapters": ["0:00 Overview", "0:02 Details"], "tags": ["guide", "tutorial"],
+                        "pinned_comment": "Try it here"},
+            "personal": {"notes": "Clean 16:9 master for direct sharing."},
+        },
+        "disclosure": {"ai_generated": False},
+    })
+    run("keyframes auto-selects file mode shots", "image.py", "keyframes", "--spec", still_spec_path, expect=("selected",))
+    run("assemble still-image spec (focal Ken Burns + blur fit + string transition)", "assemble.py", "--spec", still_spec_path,
+        expect=("1920x1080",))
+    still_info = common.probe(root / "renders/vstill_master.mp4")
+    check("still-image master renders exact 16:9 duration",
+          (still_info["width"], still_info["height"]) == (1920, 1080) and 4.0 <= still_info["duration"] <= 5.5, str(still_info))
+    run("qa check still-image 16:9", "qa.py", "check", root / "renders/vstill_master.mp4", "--spec", still_spec_path)
+    run("qa vision auto-detects people mode", "qa.py", "vision", "--images", root / "keyframes/multi_people.png",
+        "--reference", root / "assets/people/a/front.jpg", expect=("[people]",))
+    run("qa vision explicit app mode", "qa.py", "vision", "--mode", "app", "--images", root / "assets/captures/01_screen.png",
+        expect=("[app]",))
+    run("package supports youtube and personal delivery", "package.py", "--spec", still_spec_path,
+        expect=("vstill_youtube.md", "vstill_personal.md"))
+    check("youtube package writes title, chapters and pinned comment",
+          "## Chapters" in (root / "post/vstill_youtube.md").read_text(encoding="utf-8")
+          and "Pinned comment" in (root / "post/vstill_youtube.md").read_text(encoding="utf-8"))
+
     run("package", "package.py", "--spec", spec)
     run("models show: accepted values", "models.py", "show", "minimax-h3-max-image-to-video", "--cache",
         root / "models.json", expect=("Accepted values", "resolution: 768p, 1080p", "duration: 6s, 10s"))

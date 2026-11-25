@@ -1,24 +1,25 @@
 ---
 name: professional-video
-description: Researches any product or brand in depth (positioning, proof, customer reviews and language, competitors, ads, trends), turns it into a virality strategy (hero moments, angles, hook bank, series, calendar), then plans, generates, edits, quality-checks and packages professional videos for YouTube, TikTok, Instagram Reels and X through the Tokentide API, a Venice-compatible API (the user names the models or picks a recommended level, Essential, Pro or Max, with the total price up front; product-accurate keyframes, image-to-video, original music and sound effects, voice-over, transcription) plus FFmpeg (captions, audio mix, export). Use it whenever the user wants to promote, launch, market, grow an account for, or go viral with a product, app, service or brand on social media, or asks for YouTube videos, TikToks, Reels, Shorts or X videos, AI video ads, UGC-style content, hooks, scripts or a video content plan. Works in any language.
+description: Universal studio-grade video director and producer for any kind of video — cinematic films, personal stories, commercials, product campaigns, app and software walkthroughs, tutorials, explainers, trailers, documentaries, music videos, YouTube long-form, Shorts, TikToks, Instagram Reels, X and LinkedIn — in 16:9, 9:16 or 1:1 through the Tokentide API (a Venice-compatible API) and FFmpeg. Grounds every visual anchor first to prevent hallucination by intelligently combining autonomous browser or computer-use capture (pausing cleanly at login screens when gated), user-supplied reference photos for max consistency, and locked style or character sheets. Users name the models or pick Essential, Pro or Max with the total price up front; handles right-sized research or creative treatment, storyboarding, keyframes, video takes, voice-over, original music and SFX, captions, visual QA and delivery. Works in any language.
 license: Proprietary (Tokentide Plugin License, see LICENSE in the plugin root). Use only with the Tokentide service.
-compatibility: The full pipeline needs a shell with Python 3.8+ and network access to api.tokentide.app, plus datasets-server.huggingface.co for model ratings (Claude Code, Codex, or a Claude/ChatGPT code environment that allows the domain) plus web search. The scripts link their own key through the Tokentide connector and install FFmpeg themselves, so the user only signs in once. Without a shell, the connector's image, video and music tools cover research, strategy and generation.
+compatibility: The full pipeline needs a shell with Python 3.8+ and network access to api.tokentide.app, plus datasets-server.huggingface.co for model ratings (Claude Code, Codex, or a Claude/ChatGPT code environment that allows the domain) plus web search (and browser or computer-use tools when capturing live websites or apps). The scripts link their own key through the Tokentide connector and install FFmpeg themselves, so the user only signs in once. Without a shell, the connector's image, video and music tools cover planning and generation.
 metadata:
   internal: true
 ---
 
 # Professional Video Studio (Tokentide)
 
-Turns a product into (1) a deep, evidence-based understanding of the product, its buyers and its
-market, (2) a strategy for what will spread and why, and (3) finished, platform-ready vertical
-videos made with Tokentide's image, video, voice and music models (a Venice-compatible API) and FFmpeg —
-then learns from the results. Tokentide specifics live in references/tokentide-api.md.
+Universal studio-grade video production for **any kind of video** — cinematic stories, personal and
+event films, commercials, product launches, software and web walkthroughs, tutorials, documentaries,
+explainers, trailers, music videos, real estate or venue showcases, and high-performing social content —
+in `16:9`, `9:16` or `1:1`, using Tokentide's image, video, voice and music models (a Venice-compatible
+API) and FFmpeg. Tokentide specifics live in `references/tokentide-api.md`.
 
 `SKILL_DIR` below means the folder containing this file, and `P` the project folder created in phase 0
-(e.g. `projects/acme-bottle`); write both out in full in every command, since shell state may not
-persist between calls. Scripts are stdlib-only Python: run `python3 SKILL_DIR/scripts/<script>.py -h`
-for options and treat them as tools — read their source only when debugging. Paths inside a spec are
-relative to `P`. Each phase names the reference file to open when you reach it.
+(e.g. `projects/my-video`); write both out in full in every command, since shell state may not persist
+between calls. Scripts are stdlib-only Python: run `python3 SKILL_DIR/scripts/<script>.py -h` for
+options and treat them as tools — read their source only when debugging. Paths inside a spec are
+relative to `P`. Open each phase's reference file when you reach it.
 
 This skill ships in the Tokentide plugin next to the **Tokentide connector**. The user signs in to
 Tokentide once, when the connector asks; everything else is your job. Use the connector's tools for
@@ -31,305 +32,288 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 **What each app can run** (the connector the plugin installs serves the media tools too):
 | App | Phases | How |
 |---|---|---|
-| Claude Code, Codex (shell on the user's computer) | 0–12 | scripts; link them in phase 0, `doctor.py --fix` sets up FFmpeg |
+| Claude Code, Codex, Antigravity (shell on the user's computer) | 0–12 | scripts; link them in phase 0, `doctor.py --fix` sets up FFmpeg; use browser/computer use to capture live websites or apps |
 | Claude / ChatGPT with code execution that allows api.tokentide.app | 0–12 | scripts, as above (link again in each new sandbox) |
 | Claude / ChatGPT without a usable shell | 0 (models), 1–5, 6–7 via tools, 11 | connector tools: `list_models`/`get_model` for options, `price_video_job` quotes, `generate_image`/`edit_image`/`compose_images` for keyframes, `start_video_job` + `check_video_job` and `start_music_job` + `check_music_job` for clips and music (finished files come back as download links: one complete download each, within 6 hours). No assembly, captions, voice-over mix or QA renders: hand over the clips, music and the spec, and say the edit needs Claude Code, Codex or an editor |
 
-## Principles (and why they matter)
-- **Research decides the creative.** Most failed videos fail on the idea, not the pixels. Angles and
-  hooks come from customer language and proven competitor formats, so research comes first.
-- **The real product must look right.** Viewers and brands notice a wrong logo instantly. Build
-  keyframes from real product photos (edit/multi-edit), animate image-to-video, and add all text,
-  logos and captions in post. Never let a model invent label text.
-- **The user chooses the models, or a level, and knows the price first.** Models change weekly. Every new
-  request starts by asking whether the user names the models or wants a recommendation (Essential / Pro / Max:
-  video and images rated by the Arena leaderboard, voice and music by the skill's estimate, all priced by
-  Tokentide). Always give the total in dollars before anything is made:
-  a quote, or an estimate clearly called one. Specs use aliases (`@i2v`), never hard-coded ids.
-- **Honest content travels further.** Label AI, never fake customers or reviews, prove every claim.
-  Platforms demote or remove deceptive content, and fines are real (references/compliance.md).
-- **Spend deliberately.** Quote before queueing, respect the budget cap, test hooks cheaply, scale
-  winners. Ask before the first paid batch unless the user said to proceed. Tokentide prices fall
-  through the UTC day and the Low Tide lane is cheaper still: batch non-urgent generation late in the
-  UTC day or with `--lane lowtide`.
-- **Native and specific beats glossy and generic.** Lo-fi framing, one idea per video, a 1-second
-  visual hook, burned captions, a reason to send it to a friend.
+## Core principles (why every video comes out extraordinary)
+- **Zero hallucination — ground every visual anchor first (`references/visual-grounding.md`).** Before
+  writing a spec or generating a frame, run a **Reality Inventory** of every real-world or recurring
+  subject (people/beings, readable interfaces/data, physical products/brands, real places/events, or
+  invented worlds/characters) and gather the exact visual anchors via the smartest path:
+  - **Capture autonomously whenever possible** (agentic browser, Playwright, Chrome DevTools, Computer
+    Use, local scripts/workspace). If a live web app or resource is gated behind login/SSO/2FA/paywall,
+    open the login screen in the agent's interactive browser, pause cleanly for the user to sign in
+    (never ask for passwords/tokens in chat), then resume in that same session and capture everything.
+  - **Ask the user once, specifically, for references only they hold** (multi-angle photos of real people
+    or groups, high-res product/location originals, logos, licensed fonts, personal footage).
+  - **Lock Style Masters & Character Sheets** for purely creative/stylized worlds so every cut shares one
+    cohesive visual DNA.
+- **Pick the highest-craft visual modality per shot.** Mix real footage (`shots[].clip`), razor-sharp
+  still captures/photos/diagrams animated with smooth focal Ken Burns motion (`shots[].image` +
+  `edit.zoom` / `edit.fit`, `$0` gen cost — NEVER run `@i2v` on readable UI text!), and reference-locked
+  generative cinema (`multi-edit` → side-by-side QA → `@i2v`/`@r2v` + `end_image`).
+- **Direct with cinematic rigor.** Strong opening in 0–2 s, clear emotional or narrative arc, deliberate
+  shot-size choreography (wide → medium → close-up → detail), consistent lighting/color world, purposeful
+  pacing (visual change every 1.5–4 s), layered audio (clear narration or deliberate music-only space,
+  custom ducked score, tactile SFX, −14 LUFS mastering), and typography that matches the genre and canvas.
+- **Right-size pre-production to the request.** Full market/VOC/competitor research for growth campaigns;
+  verified workflow/fact storyboard for tutorials, explainers and documentaries; creative treatment and
+  visual bible for personal, narrative, artistic, event or commercial films. Never force irrelevant steps.
+- **User chooses models or a level, and knows the price first.** Every new media request asks whether the
+  user names the models or wants a recommendation (**Essential**, **Pro**, or **Max**, Arena-rated for
+  video/images, skill-estimated for voice/music, live-priced by Tokentide). Always state the total in
+  dollars before spending. Specs use aliases (`@i2v`), never hard-coded ids.
+- **Honest, lawful craft.** Disclose realistic AI when publishing, confirm consent for real people, prove
+  factual claims, never leak secrets/PII in captures (`references/compliance.md`).
+- **Spend deliberately.** Quote before queueing, respect budget caps, batch non-urgent generation late in
+  the UTC day or with `--lane lowtide`.
 
-## Choose the mode
-| Situation | Run |
-|---|---|
-| New product/brand, "make it go viral", "grow our account" | Full campaign: phases 0–11, then 12 after posting |
-| Project research exists, "make another video / a new batch" | 0 (first question, with "keep the same models" as an option) → 5–11 |
-| "Just the research / strategy / content plan" | 0 (no first question, no models) → 1–4 |
-| User shares analytics or results | 12, then 5–11 for the next batch (first question then) |
-| "Quick test, skip research" | 0 → mini-research (dossier essentials + 15 VOC quotes, ~10 searches) → 5–11, labelled as a test |
+## Choose the workflow depth (universal router)
+| Goal / Request | Canvas default | Pre-production (Phases 1–4) | Production (Phases 5–12) |
+|---|---|---|---|
+| **Creative / narrative / personal / event / commercial / music / artistic film** | Match destination (`16:9`, `9:16`, or `1:1`; ask if unclear) | Phase 1 **Visual Grounding** (gather any real photos/clips + lock Visual Bible / Style Master) → concise **Creative Treatment & Shot List** → approval gate | 5–11 |
+| **Walkthrough / video guide / tutorial / explainer / documentary / data story** | `16:9` (YouTube/web) and/or `9:16` (Shorts/Reels) | Phase 1 **Visual Grounding** (autonomous browser/computer-use capture with login handoff if gated, or crisp diagrams/real references) → **Storyboard & Accuracy Sheet** → approval gate | 5–11 |
+| **Product / brand growth campaign ("make it go viral", "grow our channel")** | Platform-matched (`9:16`, `16:9`, or both) | Phase 1 **Visual Grounding** (product/brand kit) + **Full Market Research, VOC, Competitors & Virality Strategy** (`research-methodology.md`) → approval gate | 5–11, then 12 after posting |
+| **New video / batch in an existing project** | Project default | Phase 0 (add "keep same models") → confirm/capture any new visual anchors | 5–11 |
+| **Research, strategy, or storyboard only** | — | Phase 0 (skip model question) → Phases 1–4 | Deliver documents |
+| **Post-publish analytics / iteration** | — | — | 12 → 5–11 |
 
-## Master checklist (copy into your task list and tick as you go)
+## Master checklist (copy into your task list and adapt to the chosen workflow)
 ```
 [ ] 0  First question: the user's models, or our recommendation? (user's language)
-[ ] 0  Setup: doctor --fix · link scripts · brief · project
-[ ] 0  Models: match the user's models | tiers (Arena ratings) → user picks a level · choose · cost → tell models + total
-[ ] 1  Product & brand dossier
-[ ] 2  Audience & voice of customer
-[ ] 3  Competitors, ads & trends
-[ ] 4  Virality strategy → approval gate (concepts + cost)
-[ ] 5  Video specs (briefs/vNN.json)
-[ ] 6  Keyframes → look → select
-[ ] 7  Video takes (quote → queue → poll) → look → select
-[ ] 8  Voice-over + word timings
-[ ] 9  Captions + assembly
-[ ] 10 Final QA (checks + frames + safe zones)
-[ ] 11 Packaging + delivery
-[ ] 12 After posting: metrics → decisions → next batch
+[ ] 0  Setup: doctor --fix · link scripts · smart brief · init project (--canvas, --type)
+[ ] 0  Models: match user's models | tiers (Arena ratings) → user picks level · choose · cost → state models + total
+[ ] 1  Visual Grounding: complete Reality Inventory → capture autonomously (browser/computer use, pausing at login if gated) AND/OR gather user references AND/OR lock Style Master → inspect every anchor!
+[ ] 2  Direction / Research: Creative Treatment & Storyboard (OR Full Research & Virality Strategy for marketing campaigns) → approval gate (plan + cost)
+[ ] 5  Video specs (briefs/vNN.json — best visual modality per shot)
+[ ] 6  Keyframes (subject/identity/style-locked stills, or verified real captures) → inspect side-by-side → select
+[ ] 7  Video takes (quote → queue → poll for generative shots; skip for crisp real-still/clip shots) → inspect → select
+[ ] 8  Audio: voice-over (if used) + word timings + original score & SFX
+[ ] 9  Captions / overlays + assembly (focal Ken Burns, fit modes, loudness-normalized mix)
+[ ] 10 Final QA (automated checks + frame sheet + visual fidelity & safe-zone gate)
+[ ] 11 Packaging & delivery (YouTube / Shorts / TikTok / Instagram / X / LinkedIn / direct file)
+[ ] 12 After posting (campaigns/channels): metrics → decisions → next batch
 ```
 
 ## Phase 0 — Setup
-0. **First question, before anything else** (references/models.md §1): in the user's language, with the
-   multiple-choice question tool when available, ask how to choose the models that will make the video, the
-   images, the voice and the music:
-   - **"I'll choose them"**: the user names the models; you check Tokentide offers them and give the total first.
-   - **"Recommend them for me"**: you compare the newest models (quality ratings from the Arena leaderboard for
-     video and images, the skill's own estimate for voice and music) and offer three levels, **Essential**,
-     **Pro** and **Max**, each with its price.
-   For a new batch in an existing project, add "keep the same models as last time". Skip the question when the
-   request already names models or a level, or is research/strategy only. User away → recommend; pick Pro if
-   it fits the budget cap, else Essential, and say so in one line. Then carry on with setup.
-1. **Environment — sign in once, then fix everything yourself** (the user approves in the browser at
-   most once and runs nothing):
-   - `python3 SKILL_DIR/scripts/doctor.py --fix`. It checks Python, FFmpeg filters, fonts, the key and
-     network, and repairs what it can: without a suitable FFmpeg it installs a pinned, checksum-verified
-     static build (libass, freetype, fontconfig, libx264) into the plugin's tools folder, with no admin
-     rights; the scripts find it automatically. Re-run it as `doctor.py --project P` once the project
-     exists: it also caches the account limits used for pacing.
-   - **No key linked yet** (doctor or any script says so): call the connector's `link_local_scripts`
-     tool, then run the command it returns right away:
-     `python3 SKILL_DIR/scripts/auth.py exchange --code <code>` (one use, 5 minutes). It stores the
-     scripts' own key (same privacy mode and caps as the connection, grouped under it in the dashboard)
-     in the user's config folder with owner-only permissions and prints only `linked: key …abcd`,
-     its privacy mode and daily cap. No approval is needed: the user already signed in to the connector.
-   - **No connector tools** (not installed, or no sign-in yet): ask the user to connect Tokentide once —
-     Claude desktop app: Customize > Connectors (or the plugin's Connectors tab) → Connect; Claude Code
-     terminal: `/mcp` → tokentide; Codex: `codex mcp login tokentide` — or run
-     `python3 SKILL_DIR/scripts/auth.py login`, which prints a tokentide.app link and code for one
-     approval in the browser (it waits ~2 minutes per run; continue with `auth.py login --resume`).
-   - **A linked key stops working** (401; revoking the connection revokes its scripts key): scripts say
-     so and what to run. Call `link_local_scripts` again (if the connector's tools also fail, ask the user
-     to reconnect it first, as above) and run the new exchange command. `auth.py status` shows which key
-     is used (masked); `auth.py rotate` replaces it; `auth.py logout --revoke` ends it.
-   - Key lookup order: env `TOKENTIDE_API_KEY`, `TOKENTIDE_API_KEY_FILE`, the file `auth.py` writes
-     (`~/.config/tokentide/api_key`; Windows `%APPDATA%\tokentide\api_key`), then `./.tokentide_api_key`.
-     An env var wins over the linked key; a key file in the project folder does not. Never print a key, paste it into chat or write it into
-     deliverables. Venice keys don't work here.
-   - **Privacy mode `all`** (preselected when connecting; `private_text` also works) is what the scripts'
-     key inherits from the connection. A key in mode `private` (the user's choice, or a key from before
-     2026-11-17) hides background removal, most premium edit and video models and all music models; doctor
-     and the recommender warn when this is the case, and the user can change the connection's key in the
-     dashboard.
-   - Host: `https://api.tokentide.app/v1` (default; sign-in calls go to the same host, so a sandbox only
-     needs that domain). `TOKENTIDE_BASE_URL` overrides it, but the key only goes to Tokentide hosts
-     (`*.tokentide.app`) or this machine; a `tt_test_` key may also go to a Vercel preview. `tt_test_` keys
-     only work on preview/staging deployments and return mock output.
-   - If the API is unreachable (sandbox allowlist; on Team/Enterprise plans owners control this in Admin
-     settings → Capabilities), say so, use the connector's tools where they cover the phase, still do
-     research, strategy and specs, and hand those over.
-   - First time in an environment, `python3 SKILL_DIR/scripts/selftest.py` runs the whole pipeline
-     against a local mock API (no key, no cost) in ~1 minute, including the sign-in flow.
-2. **Brief** — ask once, in one message, only for what you can't find yourself: product name + URL,
-   offer/price, target markets and languages, platforms (default: all three), goal (awareness /
-   followers / sales), budget cap (default $50), brand assets (high-res product photos from several
-   angles on plain backgrounds, transparent logo, brand colours/fonts), existing account handles,
-   no-go claims or topics. If the user is away, proceed with sensible defaults and list them.
-3. **Project:** `python3 SKILL_DIR/scripts/init_project.py "<Product>" --budget-usd 50 --languages en`
-   creates `P = projects/<slug>/` with templates. Put photos in `P/assets/product/`, logo in `P/assets/brand/`,
-   brand fonts (.ttf/.otf) in `P/assets/fonts/` (captions and overlays can then use them by family name).
-4. **Models — always from the live catalog**, as the user answered the first question (references/models.md):
-   - **The user's models** (§2): `python3 SKILL_DIR/scripts/models.py match "<name>" "<name>" --project P`
-     finds each name in the live catalog. Use only models Tokentide offers; for one it doesn't, say so plainly
-     and offer the closest available ones. Fill jobs the user didn't name from the Pro level (and say so), then
-     `models.py choose --project P i2v=<id> keyframe=<id> scene=<id> tts=<id> music=<id> sfx=<id>`.
-   - **A recommendation** (§3–4): `python3 SKILL_DIR/scripts/models.py tiers --project P --videos <n>`. It reads
-     the Arena leaderboard's open dataset (video and images; cached a day in `P/arena.json`), uses the skill's
-     estimate for voice and music, and from the 30 most recent models per job picks Essential (best rated among
-     the cheapest), Pro (best rated in the middle price range) and Max (best rated at any price), with a total
-     per level, in `P/model_tiers.md`. Ask the user
-     to pick a level in plain words (§4 has the wording and the level names per language), then
-     `models.py choose --project P --tier <level>`.
-   - **Then always** (§5): `python3 SKILL_DIR/scripts/models.py cost --project P --videos <n>` and tell the
-     user, plainly, which model will make the video, the product images, the backgrounds, the voice and the
-     music, and the total: "Quote: $X" when it prints QUOTE; "About $X. This is an estimate: the final price may
-     vary" when it prints ESTIMATE. Credit Arena for the ratings (the credit line in `model_tiers.md`). Get an OK before the first paid
-     step unless the user said to go ahead.
-   - `models.py recommend --project P` lists detailed options per job (Private, Newest 🆕, r2v, t2v) for
-     switching one job later (§8).
-5. Mention once: Tokentide's terms (a draft dated 1 Nov 2026) say you own outputs *subject to the
-   upstream terms*, and Venice's public terms (Jun 2026) restrict their licence to personal,
-   non-commercial use, so the user should get written commercial terms before publishing. Anonymized
-   models pass media to third-party providers (use Private options for unreleased products).
+0. **First question, before anything else** (`references/models.md` §1): in the user's language, with
+   the multiple-choice question tool when available, ask how to choose the AI models for video, images,
+   voice and music:
+   - **"I'll choose them"**: user names models; you check Tokentide availability and give the total first.
+   - **"Recommend them for me"**: you compare the newest models (Arena leaderboard ratings for video and
+     images; skill's estimate for voice and music) and offer **Essential**, **Pro** and **Max** with
+     live prices.
+   For a new batch in an existing project, add "keep the same models as last time". Skip when the user
+   already named models/level or asked for research/strategy only. User away → recommend; pick Pro if
+   within budget, else Essential, and say so in one line. (When a video uses mostly real captures/footage
+   with zero or few AI clips, note plainly that real visuals cost `$0` to generate and only audio plus
+   any generative shots incur model spend.)
+1. **Environment — sign in once, fix everything yourself** (user approves in browser at most once):
+   - `python3 SKILL_DIR/scripts/doctor.py --fix`: verifies Python, FFmpeg filters, fonts, key and network,
+     and installs a pinned, checksum-verified FFmpeg (libass, freetype, fontconfig, libx264) automatically
+     with no admin rights. Re-run `doctor.py --project P` once `P` exists to cache account limits.
+   - **No key linked yet**: call connector tool `link_local_scripts`, then immediately run
+     `python3 SKILL_DIR/scripts/auth.py exchange --code <code>` (one use, 5 min). Never ask for or print a key.
+   - **No connector tools**: guide the user to connect Tokentide once (Claude desktop: Customize >
+     Connectors; Claude Code: `/mcp` → tokentide; Codex: `codex mcp login tokentide`) or run
+     `python3 SKILL_DIR/scripts/auth.py login` (device flow; resume with `--resume`).
+   - **Revoked key (401)**: call `link_local_scripts` again (reconnect connector first if its tools fail)
+     and run `auth.py exchange`. Manage with `auth.py status|rotate|logout --revoke`.
+   - Key lookup order: `TOKENTIDE_API_KEY`, `TOKENTIDE_API_KEY_FILE`, `~/.config/tokentide/api_key`
+     (Windows `%APPDATA%\tokentide\api_key`), `./.tokentide_api_key`. Privacy mode **`all`** (or
+     `private_text`) unlocks premium edit, video, cutout and music models (`private` hides them).
+     Host: `https://api.tokentide.app/v1`.
+   - First time in an environment, `python3 SKILL_DIR/scripts/selftest.py` verifies the full pipeline
+     against a local mock API (no key, no cost).
+2. **Smart brief** — ask once, in one concise message, ONLY for what isn't stated and cannot be discovered
+   yourself: core intent/tone, canvas (`16:9` / `9:16` / `1:1`), target length, language & voice/music
+   preference, destination(s), budget cap (default $50), and any **real visual references only the user
+   possesses** (from your Reality Inventory in Phase 1). If the user is away, proceed with sensible
+   defaults and list them.
+3. **Project:** `python3 SKILL_DIR/scripts/init_project.py "<Title>" --type <general|campaign|guide|personal|commercial|explainer|story> --canvas <16:9|9:16|1:1> --platforms <...> --budget-usd 50 --languages en`
+   creates `P = projects/<slug>/` with `assets/{people,captures,product,brand,fonts,references,footage,scenes,music,sfx}/`.
+4. **Models — always from the live catalog** (`references/models.md`):
+   - **User's models** (§2): `models.py match "<name>" ... --project P` → fill unnamed jobs from Pro →
+     `models.py choose --project P ...`.
+   - **Recommendation** (§3–4): `models.py tiers --project P --videos <n>` → present **Essential**,
+     **Pro** and **Max** plainly in the user's language → `models.py choose --project P --tier <level>`.
+   - **Capability overrides (`references/models.md` §9):**
+     - **Real people on screen:** NEVER use Seedance `-basic` (409 rejection); use person-strong families
+       (Kling V3/O3, Veo 3.1) and set `@r2v` for multi-shot identity continuity when available.
+     - **Multi-reference compositing:** verify `maxInputImages` (`models.py show <id>`) when combining ≥3 inputs.
+     - **Capture/footage-heavy videos:** pass the real count of generative shots (`--shots`, `--takes`,
+       `--clip-seconds`, `--music-seconds`) to `models.py cost` so the quote matches reality.
+   - **Always give the total first** (§5): `models.py cost --project P --videos <n>` → state each model
+     plainly plus "Quote: $X" or "About $X (estimate)". Credit Arena for video/image ratings. Get OK
+     before paid generation unless told to proceed autonomously.
+5. Mention once for commercial/public releases: Tokentide's terms (draft 1 Nov 2026) grant output
+   ownership *subject to upstream terms*, and Venice's public terms (Jun 2026) restrict their licence to
+   personal, non-commercial use — advise getting written commercial terms before publishing brand content.
+   Anonymized models pass media to third-party providers (use Private models for confidential material).
 
-## Phases 1–4 — Deep product & brand research → virality strategy
-Read `references/research-methodology.md` now. Fill the four templates in `P`:
-| Phase | File | Minimum bar |
-|---|---|---|
-| 1 Product & brand | research/01-product-brand-dossier.md | every field sourced or UNKNOWN; ≥10 sources; complete product bible (descriptor, exact on-pack text, never-change list, hero angles); social audit |
-| 2 Audience & VOC | research/02-audience-voc.md | ≥50 verbatim quotes from ≥4 source types; top 7 pains/desires/objections; 2–4 segments with JTBD + awareness level; language bank |
-| 3 Competitors & trends | research/03-competitors-trends.md | 5–10 competitors/creators with top posts and verbatim hooks; ≥10 ads (long-running = validated); dated trends; 8-week cultural calendar; white space |
-| 4 Virality strategy | strategy/04-virality-strategy.md | ranked hero moments; ≥10 angles; ≥30 hooks in customer words; 3–5 pillars; ≥2 series; first batch scored on STEPPS with a send test; 2-week calendar; KPIs; risk register |
-- Search widely (25–60 searches/fetches for a campaign), in the market's language, citing URL + date.
-- With a subagent tool, run phases 1–3 in parallel (one agent per template; give each the template
-  path, its methodology section and the evidence rules), then write phase 4 yourself.
-- Platforms block some fetches: use TikTok Creative Center, Meta Ad Library, `site:` searches, review
-  sites and Reddit; ask the user for screenshots/exports when stuck. Use a browser only if available
-  and the user allows it.
-- **Approval gate:** one screen with the positioning line, top 3 angles, top 10 hooks, series ideas,
-  and the first 3–6 concepts with their cost at the chosen models (`models.py cost --videos <n>`: quote or estimate). Get a go-ahead before paid
-  generation unless the user asked you to run autonomously. Deliver research and strategy as
-  documents the user can keep (the environment's document/artifact features if present).
+## Phase 1 — Visual Grounding & Reference Gathering (MANDATORY)
+**Open `references/visual-grounding.md` now.** Run a **Reality Inventory** of every real or recurring
+element in the video, then gather every anchor intelligently:
+1. **Autonomous capture first** (websites, live apps, dashboards, docs, desktop apps, terminals, local
+   code/data): use your environment's browser subagent, Playwright, Chrome DevTools MCP, Computer Use, or
+   programmatic graphic rendering.
+   - **Gated / login-protected apps or sites:** open the login screen in the agent's interactive browser →
+     **pause and ask the user to log in there** (never request passwords/tokens in chat; never bypass
+     auth/CAPTCHAs) → resume in that same authenticated browser session and capture the complete workflow!
+   - Capture dense cause-and-effect states at sharp, legible retina dimensions (`1280×720 @ 1.5x` for
+     `16:9`; `540×960 @ 2x` for `9:16`), clean of popups, spinners, dev overlays, secrets or PII. Save
+     sequential PNGs + `INDEX.md` (with focal `(x, y)` coordinates) in `P/assets/captures/` and inspect
+     every capture visually.
+2. **User-supplied references (when only the user has them):** ask once clearly for multi-angle, well-lit
+   photos of any real people/pets (2–4 per individual + together if multi-person, with consent →
+   `P/assets/people/` + `IDENTITY.md`), high-res multi-angle photos of physical products/objects/places,
+   transparent logos (`P/assets/brand/`), licensed fonts (`P/assets/fonts/`), or real clips (`P/assets/footage/`).
+3. **Visual Bible for creative/stylized worlds:** lock 1–2 **Style Master** images + any **Character /
+   Asset Sheets** in `P/assets/references/` (plus `STYLE_BIBLE.md`) so every generated shot shares one
+   unmistakable aesthetic.
 
-## Phase 5 — Video specs
-One JSON per video in `P/briefs/vNN.json`, copied from `P/briefs/_example_spec.json` (field reference:
-references/post-production.md §1; formats and beat sheets: references/hooks-formats.md; prompts:
-references/prompting.md).
-- One idea per video. Hook in the first 1–2 s on three layers: visual (frame 1 = motion or payoff),
-  on-screen text ≤8 words (`overlays` hook), spoken line ≤12 words. Payoff by ~70% of runtime, then a
-  platform-matched CTA (send / reply / comment / follow).
-- 7–15 s for reach tests, 20–45 s for demos. 3–7 shots of 1.5–5 s. VO at 2.3–3.0 words/s.
-- Models as aliases: `"@keyframe"`, `"@i2v"`, `"@i2v_audio"` (shots that need real sound), `"@tts"`.
-- Real footage or photos the user has beat AI for credibility: use `shots[].clip` or keyframe `frame` mode.
-- Every claim in VO/captions/posts goes in `claims[]` with evidence; set `disclosure` (AI, paid).
-- First batch: 3–6 videos; vary hooks on the strongest bodies to learn fast (references/growth-loop.md).
+Pass the **Grounding Readiness Gate** (`visual-grounding.md` §9) before Phase 5.
 
-## Phase 6 — Keyframes (cheap; fix problems here)
-1. Cutout: `python3 SKILL_DIR/scripts/image.py bg-remove --image P/assets/product/<photo> --out P/assets/product/<name>_cutout.png`
-2. Scenes without the product: `image.py generate --model @scene --prompt "..." --n 2 --out P/assets/scenes/<name>`
-3. `image.py keyframes --spec P/briefs/vNN.json` — runs every shot's keyframe job in parallel (default 3
-   variants; `multi-edit` with [scene, cutout] for product shots), appends a product-fidelity clause, and
-   writes a contact sheet per shot to `P/qa/`.
-   Tokentide allows 4 image requests/min on new accounts (10 verified, 20 trusted): the scripts pace
-   themselves, so a 9–15 image batch takes several minutes — say so rather than waiting silently.
-   Inputs are shrunk automatically to fit Tokentide's 4.5 MB request limit; public https URLs pass through.
-4. **Look** at each sheet next to the real product photo; score with references/qa-rubric.md §1.
-   `image.py select --spec P/briefs/vNN.json --shot s1 --k 2`. Regenerate failures with a concrete fix;
-   after two failed rounds change approach (Alt premium model, simpler scene, `frame` with the real photo).
+## Phases 2–4 — Direction, Research & Storyboard (right-sized!)
+- **Growth / product / brand campaign:** open `references/research-methodology.md` and complete the 4
+  templates (`01-product-brand-dossier.md`, `02-audience-voc.md`, `03-competitors-trends.md`,
+  `04-virality-strategy.md`; run 1–3 in parallel via subagents when available).
+- **Walkthrough / tutorial / explainer / documentary:** write `P/strategy/storyboard.md` mapping every
+  beat to its verified capture/visual/fact, focal zoom `(x, y)` coordinates, spoken script (2.3–2.6 w/s),
+  text overlays (≤8 words), optional non-UI generative shots, and verified `claims[]`.
+- **Film / commercial / personal / narrative / artistic / event video:** write `P/strategy/treatment.md`
+  with the emotional/visual arc, shot-by-shot cinematography (shot size, camera move, lighting/palette,
+  visual anchor per shot), optional narration or minimal title cards, and musical energy curve.
 
-## Phase 7 — Video takes
-1. `python3 SKILL_DIR/scripts/video.py run --spec P/briefs/vNN.json --dry-run` → quote per take and total.
-   It stops above the video's `budget_usd` or the project cap; ask the user before raising either.
-2. `video.py run --spec P/briefs/vNN.json` → queues up to 6 takes (Tokentide allows 8 unfinished jobs per
-   account; the rest wait as "planned"), then polls for up to 240 s. If jobs are still pending, run
-   `video.py poll --jobs P/logs/vNN_video_jobs.json` again (safe to repeat; it never re-submits and it
-   queues planned takes as slots free). Jobs typically take 1–6 minutes; failed jobs are refunded.
-   - Add `--lane lowtide` for non-urgent batches (cheaper; falls back to standard when closed).
-   - Daily cutoff: the video queue closes ~23:14 UTC until the 00:00 UTC reset (music/SFX ~23:39 UTC);
-     the script stops with a clear message — queue again after midnight UTC.
-3. **Look** at every take: `qa.py frames P/clips/<take>.mp4 --every 0.5`. Pick the take with the best clean
-   2–4 s window: `video.py select --spec P/briefs/vNN.json --shot s1 --take 2`, and set `edit.in/out` around it.
-4. Problems → the decision tree in references/qa-rubric.md §4 (shorten, simplify motion, end frame,
-   Alt premium model). 422 = rephrase; 409 = faces on Seedance → other family.
+**Approval gate:** present one concise screen with the creative direction/storyboard, visual anchor map,
+script/beat outline, and live total cost (`models.py cost`) before spending on paid generation.
 
-## Phase 8 — Voice-over and word timings
-- `audio.py tts --spec P/briefs/vNN.json` → `P/audio/vNN_vo.mp3`; it prints words/second (aim 2.3–3.0) and
-  notes when a model lacks native speed control. Choose a voice matching brand and language (`audio.py voices`;
-  models with `supports_custom_voice_id` also accept raw provider Voice IDs). Never pick ElevenLabs TTS v4 by
-  default: use ElevenLabs TTS v4 Turbo (`elevenlabs-tts-v4-turbo`; the scripts never offer v4), and v4 only if
-  the user explicitly asks for that exact model. Voice models on Tokentide's queued audio route run as a short
-  job: the script quotes, queues and waits; never re-run it for the same take (that pays twice).
-- **Never time-stretch speech (`atempo` or any audio tempo change):** stretching duplicates consonant/syllable
-  attacks and causes audible stutters. If the voice is too fast: shorten the script, use a model with a native
-  speed parameter, or lengthen only the silent pauses with `audio.py pace --spec P/briefs/vNN.json --target-wps 2.4`
-  (keeps every voiced stretch sample-identical and shifts `voiceover.words`).
-- `audio.py transcribe --spec P/briefs/vNN.json` → word timings aligned to the script (defaults to
-  `elevenlabs/scribe-v2`, falling back to `nvidia/parakeet-tdt-0.6b-v3` on `private` keys, and warns if long
-  silences ≥ 300 ms don't fall between words); offline fallback: `audio.py align --spec P/briefs/vNN.json`.
-  Any split or trim of speech must snap to real silence (`audio.py split` / `trim`) — never cut at ASR times alone.
-- **Music (rights-safe):** generate an original track — add `music.generate {"model": "@music",
-  "prompt": "<genre, mood, bpm, instruments>", "duration_seconds": <video length + 2>, "force_instrumental": true}`
-  to the spec and run `audio.py music --spec P/briefs/vNN.json` (unsupported fields are omitted automatically from
-  `model_spec`; quote → queue → collect; sets `music.file`). Or use a track the user has rights to. For
-  TikTok/Reels library sounds, post the `_nomusic` render.
-- **SFX:** `sfx[].generate {"model": "@sfx", "prompt": "short airy whoosh", "duration_seconds": 1}` →
-  `audio.py sfx --spec P/briefs/vNN.json`. Music and SFX models are Anonymized (key mode `all`).
-- Voice cloning isn't offered through Tokentide; use a stock voice or a real recorded voice-over.
+## Phase 5 — Video specs (`P/briefs/vNN.json`)
+Copy `P/briefs/_example_spec.json` (`references/post-production.md` §1; storycraft & formats:
+`references/hooks-formats.md`; cinematography & prompts: `references/prompting.md`).
+- Set `canvas` / `aspect_ratio` (`16:9`, `9:16`, or `1:1`). Open strong at 0–2 s; vary shot sizes and
+  visual rhythm every 1.5–4 s.
+- **Real footage / screen recordings:** `shots[].clip`.
+- **Crisp still captures, real photos & custom diagrams (`$0` gen cost, zero distortion):** `shots[].image`
+  (or `keyframe.mode: "file"`/`"frame"` with no `video` block) + targeted Ken Burns `edit.zoom` (`push`,
+  `pull`, `punch`, `pan-left|right|up|down`, or `{"type":"push","amount":0.22,"x":0.78,"y":0.30}`) +
+  `edit.fit` (`"cover"`, `"contain"` with `bg`, or `"blur"` blurred-backdrop framing).
+- **Generative cinema shots:** aliases (`@keyframe`, `@scene`, `@i2v`, `@i2v_audio`, `@r2v`, `@tts`);
+  `keyframe.fidelity`: `"person"` (auto for `assets/people/`), `"product"` (auto for `assets/product/`),
+  `"subject"` (places, pets, objects, characters), or `"none"` (pure backgrounds). Pass multi-shot
+  continuity anchors via `video.reference_images`, `video.elements` (`@r2v`), and/or `video.end_image`
+  (`video.py` auto-encodes local files within 4.5 MB).
+- Record factual claims in `claims[]` with evidence/source and set honest `disclosure`.
 
-## Phase 9 — Captions and assembly
-1. `captions.py --spec P/briefs/vNN.json` → burned-caption ASS (+ SRT) with word highlight, hook text
-   and labels (brand colours via `captions.primary/highlight`), sized to the spec's canvas (`9:16` default,
-   `16:9` or `1:1`).
-2. `assemble.py --spec P/briefs/vNN.json --draft` to check timing, then `assemble.py --spec P/briefs/vNN.json`
-   → `P/renders/vNN_master.mp4` (1080×1920 for `9:16`, 1920×1080 for `16:9`, 1080×1080 for `1:1`; 30 fps,
-   −14 LUFS via linear loudnorm or constant gain + true-peak limiter), `_nomusic.mp4` when music is set,
-   cover (+ 3:4 grid preview for `9:16`). Edit grammar: references/post-production.md §3.
+## Phase 6 — Keyframes (cheap; lock likeness, subject & style HERE)
+1. Product cutouts: `image.py bg-remove --image P/assets/product/<photo> --out P/assets/product/<name>_cutout.png`.
+2. Subject-free scenes / Style Masters: `image.py generate --model @scene --prompt "..." --aspect-ratio <canvas> --n 2 --out P/assets/scenes/<name>`.
+3. `image.py keyframes --spec P/briefs/vNN.json` — generates all spec keyframes in parallel (default 3
+   variants; `multi-edit` takes 2–8 inputs), applies the right fidelity clause, auto-selects single real
+   `file`/`frame` shots, and builds contact sheets in `P/qa/`. (New accounts allow 4 image requests/min —
+   scripts pace automatically; inform the user if a large batch takes a few minutes.)
+4. **Inspect side-by-side** against original references (`references/qa-rubric.md` §1; optional
+   `qa.py vision --mode <auto|people|product|app|general>`). Select winners:
+   `image.py select --spec P/briefs/vNN.json --shot s1 --k 2`. Fix visual flaws here before animating!
 
-## Phase 10 — Final QA (gate)
-1. `qa.py check P/renders/vNN_master.mp4 --spec P/briefs/vNN.json` — no FAIL allowed.
-2. `qa.py frames P/renders/vNN_master.mp4 --every 1` and `qa.py safezone P/renders/vNN_master.mp4 --t 1` —
-   look: hook visible at 0.3 s, product correct in every frame, captions match speech, nothing in the
-   red/orange UI zones, CTA readable, disclosure present.
-3. Fix and re-render until it passes references/qa-rubric.md §3. Optional second opinion:
-   `qa.py vision --images <frames> --reference P/assets/product/<photo>`.
+## Phase 7 — Video takes (generative shots only; skipped for real still/clip shots)
+1. `python3 SKILL_DIR/scripts/video.py run --spec P/briefs/vNN.json --dry-run` → live quote & budget check.
+2. `video.py run --spec P/briefs/vNN.json` → queues up to 6 takes (≤8 unfinished jobs/account; rest wait
+   as "planned") and polls up to 240 s. Resume safely with `video.py poll --jobs P/logs/vNN_video_jobs.json`.
+   Add `--lane lowtide` for cheaper non-urgent batches. Daily cutoff ~23:14 UTC until 00:00 UTC (music
+   ~23:39 UTC); failed jobs refund automatically.
+3. **Inspect** every take: `qa.py frames P/clips/<take>.mp4 --every 0.5`. Select the best clean window:
+   `video.py select --spec P/briefs/vNN.json --shot s1 --take 2` and set `edit.in`/`out`.
+4. Problems → decision tree in `references/qa-rubric.md` §4 (`409` on Seedance `-basic` = switch to Kling/Veo).
+
+## Phase 8 — Voice-over, original score & sound design
+- **Voice-over** (omit or set `voiceover.enabled: false` when pure music + visuals/titles hit harder):
+  `audio.py tts --spec P/briefs/vNN.json` (2.3–3.0 w/s; `audio.py voices`; custom Voice IDs where
+  supported). Never pick ElevenLabs TTS v4 by default (`elevenlabs-tts-v4-turbo` instead, unless v4 is
+  explicitly requested). Never re-run queued TTS for the same take.
+- **Never time-stretch speech (`atempo`):** adjust script length, use native speed control, or lengthen
+  silent pauses only with `audio.py pace --spec P/briefs/vNN.json --target-wps 2.4`.
+- **Word timings:** `audio.py transcribe --spec P/briefs/vNN.json` (defaults to `elevenlabs/scribe-v2`,
+  fallback `nvidia/parakeet-tdt-0.6b-v3` on `private` keys; offline `audio.py align`). Snap any speech
+  edits to real silence (`audio.py split` / `trim`).
+- **Original music (rights-safe):** configure `music.generate` (genre, mood, bpm, instruments, build,
+  `duration_seconds`, `force_instrumental: true`) and run `audio.py music --spec P/briefs/vNN.json` (or
+  use user-licensed music).
+- **SFX:** anchor subtle transitions, foley, UI clicks or impacts in `sfx[]` and run `audio.py sfx --spec`.
+  (Music & SFX require privacy mode `all` or `private_text`.) Voice cloning isn't offered through Tokentide.
+
+## Phase 9 — Captions, overlays & assembly
+1. `captions.py --spec P/briefs/vNN.json` → ASS + `.srt` auto-scaled to `16:9`, `9:16` or `1:1` (uses
+   `P/assets/fonts/` first, then bundled SIL OFL fonts; set `captions.enabled: false` for clean cinema
+   while keeping title/label `overlays[]` and `.srt`).
+2. `assemble.py --spec P/briefs/vNN.json --draft` to review pacing, then `assemble.py --spec P/briefs/vNN.json`
+   → `P/renders/vNN_master.mp4` (H.264 High, 30 fps, −14 LUFS linear loudnorm or fixed gain + true-peak
+   limiter), `_nomusic.mp4`, cover (+ 3:4 grid crop for `9:16`).
+
+## Phase 10 — Final QA (mandatory gate)
+1. `qa.py check P/renders/vNN_master.mp4 --spec P/briefs/vNN.json` — zero FAIL allowed.
+2. `qa.py frames P/renders/vNN_master.mp4 --every 1` and `qa.py safezone P/renders/vNN_master.mp4 --spec P/briefs/vNN.json --t 1` —
+   **open and inspect visually**: compelling opening at 0.3 s, real subjects match references, UI/text is
+   razor-sharp, visual craft and lighting stay coherent, zero text/faces trapped in red/orange UI margins,
+   zero PII/secrets leaked, honest disclosure present.
+3. Optional second opinion: `qa.py vision --mode <auto|people|product|app|general> --images <frames> --reference <refs>`.
+   Iterate until it passes `references/qa-rubric.md` §3.
 
 ## Phase 11 — Packaging & delivery
-Fill `packaging` (per-platform caption, ≤5 Instagram hashtags, 3–5 TikTok, 0–2 X, alt text, post time)
-using references/platforms.md, then `package.py --spec P/briefs/vNN.json` → `P/post/vNN_{tiktok,instagram,x}.md`
-with copy and a pre-post checklist (AI label, disclosure, sound, cover). It blocks unsubstantiated
-claims and >5 Instagram hashtags. Deliver: master video(s), covers, post files, the calendar, and
-`budget.py --project P` spend. You don't post on the user's behalf unless they ask and
-the environment supports it.
+Populate `packaging` for the target destinations (`youtube`, `youtube-shorts`, `tiktok`, `instagram`, `x`,
+`linkedin`, or `general`/`personal`/`web` for direct delivery — `references/platforms.md`), then run
+`package.py --spec P/briefs/vNN.json`. Deliver: master video(s), `_nomusic` if applicable, cover/thumbnail,
+`.srt` subtitles, platform/delivery files, and exact spend (`budget.py --project P`).
 
-## Phase 12 — Learn and iterate
-After 48–72 h: fill `P/logs/performance.csv` (created by init; `metrics.py template` makes a fresh one) from
-the user's analytics (exports or screenshots), run `metrics.py analyze --csv P/logs/performance.csv` → SCALE / ITERATE-HOOK /
--BODY / -PAYOFF / -FOLLOW / KILL per post. Update the hook bank, plan the next batch with
-references/growth-loop.md, ask the first question again for the next batch (re-run `models.py tiers` for newer
-models), and offer a 🆕 model test take.
+## Phase 12 — Learn and iterate (for channels & campaigns)
+After 48–72 h: update `P/logs/performance.csv` from analytics, run `metrics.py analyze`, refine hooks and
+plan the next batch (`references/growth-loop.md`), re-ask the model question (`models.py tiers`), and
+offer a 🆕 model test take.
 
 ## Project layout
 ```
 projects/<slug>/
-  project.json         budget cap, platforms, languages, chosen models (@aliases) and level
-  models.json          live catalog cache        arena.json          Arena ratings (CC BY 4.0), a day
-  model_tiers.md       Essential / Pro / Max      cost_quote.json     the total given to the user
-  research/  strategy/ the four filled templates
-  briefs/vNN.json      one spec per video (source of truth for every script)
-  assets/{product,brand,fonts,scenes,music,sfx}/   real photos, logo, brand fonts (.ttf/.otf), scenes, licensed audio
+  project.json          type, canvas, budget cap, platforms, languages, chosen models (@aliases)
+  models.json           live catalog cache        arena.json          Arena ratings (CC BY 4.0)
+  model_tiers.md        Essential / Pro / Max     cost_quote.json     total quoted to the user
+  research/  strategy/  treatment.md / storyboard.md OR full dossier/VOC/competitors/virality strategy
+  briefs/vNN.json       one spec per video (source of truth for every script)
+  assets/{people,captures,product,brand,fonts,references,footage,scenes,music,sfx}/
   keyframes/ clips/ audio/ captions/ renders/ qa/ post/
-  logs/ledger.jsonl    every API call + spend     logs/vNN_video_jobs.json   queue ids (resume polling)
+  logs/ledger.jsonl     every API call + spend    logs/vNN_video_jobs.json   queue ids
 ```
-Every generated file has a `.json` sidecar with model, prompt and request id (provenance).
+Every generated file gets a `.json` sidecar with model, prompt and request id (provenance).
 
 ## When things go wrong
 | Symptom | Do |
 |---|---|
-| "No Tokentide key is linked" | `link_local_scripts` → `auth.py exchange --code <code>` (phase 0); without the connector, `auth.py login` |
-| 401 invalid_api_key | key revoked (or its connection was): link again as above; the user reconnects the connector only if its tools fail too |
+| "No Tokentide key is linked" | `link_local_scripts` → `auth.py exchange --code <code>` (phase 0); without connector, `auth.py login` |
+| 401 invalid_api_key | key/connection revoked: link again (reconnect connector first if its tools fail) |
 | ffmpeg missing / filter missing | `doctor.py --fix` |
-| 403 model_not_allowed | the connection's privacy mode is too strict → the user sets mode `all` on the connection's key in the dashboard (or pick a Private option) |
-| network error | allowlist api.tokentide.app (or the `TOKENTIDE_BASE_URL` host); meanwhile finish research/specs |
-| 400 on a parameter | the error names the parameter and the accepted values (case-sensitive, e.g. `1080P`); `models.py show <id>` lists them; fix the spec. Unknown optional fields are dropped automatically |
-| 429 "Spend velocity limit reached" / "Running requests limit reached" | not a daily limit: the account's finished requests may cost a list-price amount per minute, and its running requests may hold a list-price amount at their worst case (`get_account`, doctor). A queued video/music job counts at its quoted price when it is queued, so large jobs start about one per minute: let the scripts wait and retry, and plan batches with that pace in mind (the video queue closes ~23:14 UTC) |
-| 402 insufficient_balance / spend_limit_reached | tell the user: top up or raise the cap; offer Budget/Low Tide |
-| 413 payload_too_large | inputs are auto-shrunk; for video inputs pass a public https URL |
-| 503 epoch_rollover / queue closed | daily reset: queue after 00:00 UTC (quotes still work) |
-| 409 duplicate_request | the first attempt went through but its response was lost; check `GET /account/usage` |
-| 422 content violation | remove brand names/real people from prompts; describe generically |
-| alias not set (`@i2v`) | the first question (phase 0) → `models.py match` or `tiers` → `models.py choose` |
-| a model the user named isn't on Tokentide | say so plainly; offer `models.py match`'s closest models or the level's pick |
-| `tiers`: a level's total is an ESTIMATE | a quote failed (see "No price"): run again later, or give the total as an estimate |
-| `tiers`: "No leaderboard ratings this time" | Arena's dataset couldn't be read (network; in a sandbox allow `datasets-server.huggingface.co`): the levels rest on the skill's estimate; say so, or run again later |
-| two levels use the same model for a job | expected: it is both the best rated and the cheapest there; say so in one line |
-| quote over budget | a lower level (Essential), fewer takes, shorter clips, 720p drafts, `--lane lowtide`, later in the UTC day, or ask to raise the cap |
-| product drifts in clips | fix keyframe, shorten to 4–5 s, lock camera, add end frame, try Alt premium |
-| captions off-sync | re-run `audio.py transcribe` (or `align`), then captions + assemble |
+| 403 model_not_allowed | privacy mode too strict → user sets mode `all` (or `private_text`) on the connection's key |
+| Resource behind login / 2FA / paywall | Open login page in the agent's browser, pause for user to sign in, resume capture in that same session |
+| Identity / subject drifts | Ground from multi-angle references in `multi-edit` (`fidelity: "person"`/`"subject"`), QA side-by-side, animate with Kling/Veo/`@r2v` + `end_image` |
+| UI or readable text warps | Never pass readable UI/text to `@i2v`; use real captures (`shots[].image` + focal `edit.zoom` / `edit.fit`) |
+| 409 needs_consent (Seedance) | Seedance `-basic` rejects people: switch video model to Kling or Veo |
+| 400 on a parameter | Error names parameter & case-sensitive accepted values (`models.py show <id>`); fix spec |
+| 429 spend velocity / running limit | Not a daily limit: scripts wait & retry automatically (large jobs start ~1/min) |
+| 402 insufficient_balance / spend cap | Tell user: top up or raise cap; offer Essential / `--lane lowtide` / real-still shots |
+| 503 epoch_rollover / queue closed | Daily reset: queue after 00:00 UTC (quotes still work) |
+| 422 content violation | Remove third-party brand names or celebrity references; describe neutrally |
+| Captions off-sync | Re-run `audio.py transcribe` (or `align`), then `captions.py` + `assemble.py` |
 
 ## Reference map
 | File | Open when |
 |---|---|
-| references/research-methodology.md | phases 1–4 (always for a campaign) |
-| references/models.md | phase 0: the first question, the user's models, the levels, the total price; switching models |
-| references/platforms.md | strategy (§4) and packaging (phase 11) |
-| references/hooks-formats.md | hooks, formats, beat sheets, shareability (phases 4–5) |
-| references/prompting.md | writing keyframe and motion prompts (phases 5–7) |
-| references/post-production.md | spec fields, edit grammar, captions, audio (phases 5, 9) |
-| references/qa-rubric.md | every look-and-select step and the final gate (phases 6, 7, 10) |
-| references/compliance.md | claims, AI labels, endorsements, likeness, music, Tokentide/Venice terms |
-| references/growth-loop.md | cadence, testing, metrics, next batches (phase 12) |
-| references/tokentide-api.md | hosts, privacy modes, limits, lanes, errors, jobs, gaps vs Venice, manual calls |
+| `references/visual-grounding.md` | **phase 1 (ALWAYS)** — Reality Inventory, autonomous browser/computer-use capture + login handoff, multi-angle references, Visual Bible & hybrid directing |
+| `references/models.md` | phase 0: first question, user's models, Essential/Pro/Max levels, total price, capability overrides |
+| `references/prompting.md` | cinematography, keyframe grounding (`fidelity`), motion prompts, consistency & voice scripts (phases 5–7) |
+| `references/post-production.md` | spec fields, still-image focal Ken Burns & pan, fit modes, transitions, captions, audio & export (phases 5, 9) |
+| `references/qa-rubric.md` | visual look-and-select rubrics (identity, UI sharpness, subject accuracy, cinematic craft) & final gate (phases 6, 7, 10) |
+| `references/hooks-formats.md` | universal directing, hooks, visual pacing & format beat sheets across genres (phases 2–5) |
+| `references/platforms.md` | YouTube (long-form & Shorts), TikTok, Instagram Reels, X, LinkedIn & direct delivery specs (phases 4, 11) |
+| `references/research-methodology.md` | phases 1–4 for product/brand marketing & viral growth campaigns |
+| `references/compliance.md` | AI labels, EU AI Act, consent/likeness, claims, music rights, Tokentide/Venice terms |
+| `references/growth-loop.md` | posting cadence, A/B testing, metrics & iteration (phase 12) |
+| `references/tokentide-api.md` | hosts, privacy modes, limits, lanes, errors, jobs, payload caps, raw API calls |
