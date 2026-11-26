@@ -152,9 +152,16 @@ def build_job(spec, shot, models):
     model = common.resolve_model(spec.root, v.get("model")) or common.die(f"{shot['id']}: video.model missing")
     prompt = v.get("prompt") or common.die(f"{shot['id']}: video.prompt missing")
     body = {"model": model, "prompt": prompt, "duration": norm_duration(v.get("duration", "5s"))}
-    for k in ("negative_prompt", "resolution"):
-        if v.get(k):
-            body[k] = v[k]
+    if v.get("negative_prompt"):
+        body["negative_prompt"] = v["negative_prompt"]
+    # Default clip resolution from spec -> project tier (720p on Pro, 1080p/4K on Max) -> 1080p;
+    # validate() snaps to exact model casing or closest offered resolution (e.g. 720p on Seedance 2.5 Flash).
+    meta = common.project_meta(spec.root)
+    default_res = v.get("resolution") or meta.get("video_resolution") or "1080p"
+    if default_res and allowed_values(models.get(model), "resolution"):
+        body["resolution"] = default_res
+    elif v.get("resolution"):
+        body["resolution"] = v["resolution"]
     ar = v.get("aspect_ratio") or common.canvas_for(spec=spec)["aspect"]
     if ar:
         body["aspect_ratio"] = ar

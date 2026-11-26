@@ -18,27 +18,36 @@ made. Specs then refer to the choice by alias (`@i2v`, `@keyframe`, …).
 10. Cost model
 11. Fallback snapshot (Nov 2026) — only if the API is unreachable
 
-## 1. Default Pro tier & the first question
+## 1. Default Pro tier, flagship Max concierge & the first question
 Unless the user explicitly states different models or another tier in their request, **ALWAYS propose the
 `Pro` tier by default**:
-- **Video:** **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`, native sound included;
-  `seedance-2-5-flash-reference-to-video-basic` for R2V)
-- **Voice-over:** **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`)
-- **Images & Music:** live Pro-level picks from `models.py tiers` (Arena-rated for images; skill estimate
-  for music)
+- **Video (Pro):** **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`, native `720p` clips
+  with optional native sound, assembled into a crisp `1080p` master; `seedance-2-5-flash-reference-to-video-basic`
+  for R2V)
+- **Video (Max flagship):** **Seedance 2.5** (`seedance-2-5-image-to-video-basic`, higher-resolution native
+  **`1080p` / `4K`** clips by default) — **PLUS** a live, dynamically fetched menu of state-of-the-art
+  `1080p`/`4K` video models from Tokentide's catalog (`model_tiers.md` → *Max — State-of-the-art
+  high-resolution video options*) so the user can pick their favorite SOTA model and resolution.
+- **Voice-over (Pro & Max):** **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`)
+- **Images & Music:** live Pro-level or Max-level picks from `models.py tiers` (Arena-rated for images;
+  skill estimate for music)
 
 Ask in the user's language, with the multiple-choice question tool when the app has one (plain words, no
 model jargon):
 
-> Before we generate anything: by default I recommend our **Pro** tier — **Seedance 2.5 Flash** for video
-> and **ElevenLabs TTS v4 Turbo** for voice-over, paired with the best-value live Pro image and music models
-> on Tokentide — and I'll show you the full itemized estimated quote for the whole video (video, images,
-> voice-over, music and SFX) before spending anything. How would you like to choose the models?
-> 1. **Pro (Recommended).** Seedance 2.5 Flash for video + ElevenLabs v4 Turbo for voice-over + live Pro
->    image & music models.
-> 2. **Compare Essential / Pro / Max levels.** Show all three price/quality tiers from Tokentide's live
->    catalog (rated by the Arena leaderboard for video & images).
-> 3. **I'll choose my own models.** Tell me which models you'd like; I'll check Tokentide availability and
+> Before we generate anything: by default I recommend our **Pro** tier — **Seedance 2.5 Flash** (`720p`
+> clips mastered to `1080p`) for video and **ElevenLabs TTS v4 Turbo** for voice-over, paired with the
+> best-value live Pro image and music models on Tokentide — and I'll show you the full itemized estimated
+> quote for the whole video (video, images, voice-over, music and SFX) before spending anything. How would
+> you like to choose the models?
+> 1. **Pro (Recommended).** Seedance 2.5 Flash (`720p` clips → `1080p` master) + ElevenLabs v4 Turbo + live
+>    Pro image & music models.
+> 2. **Max (Flagship 1080p / 4K studio experience).** Higher-resolution **Seedance 2.5** (`1080p` / `4K`) by
+>    default — or pick from live state-of-the-art `1080p`/`4K` video models — plus top flagship image, voice
+>    & music models with concierge creative checkpoints.
+> 3. **Compare Essential / Pro / Max levels.** Show all three price/quality tiers side by side from
+>    Tokentide's live catalog (rated by the Arena leaderboard for video & images).
+> 4. **I'll choose my own models.** Tell me which models you'd like; I'll check Tokentide availability and
 >    give you the full itemized quote first.
 
 - For a new batch in a project that already has models, add: **keep the same models as last time**
@@ -109,11 +118,29 @@ from `model_tiers.md`:
 > prices right now.
 > - **Essential**: the best-rated models among the most affordable ones. Ideal for testing ideas and posting
 >   often. Quote: $5.80.
-> - **Pro (Recommended default)**: **Seedance 2.5 Flash** for video and **ElevenLabs TTS v4 Turbo** for
->   voice-over, paired with the best-value Pro image and music models. Ideal for main videos, walkthroughs
->   and campaigns. Quote: $18.
-> - **Max**: the highest-rated models on Tokentide today, whatever the price. For launches and hero videos.
->   Quote: $38.
+> - **Pro (Recommended default)**: **Seedance 2.5 Flash** (`720p` clips → `1080p` master) for video and
+>   **ElevenLabs TTS v4 Turbo** for voice-over, paired with the best-value Pro image and music models. Ideal
+>   for main videos, walkthroughs and campaigns. Quote: $18.
+> - **Max (Flagship 1080p / 4K)**: **Seedance 2.5** at native `1080p` (or `4K`) by default — plus a curated
+>   live menu of state-of-the-art `1080p`/`4K` video models to choose from — paired with the highest-rated
+>   image, voice and music models and white-glove creative sign-offs. For launches and hero films. Quote: $38.
+
+### Flagship Max concierge interaction (when the user chooses Max)
+Make **Max** feel like working with a boutique creative director — elevated, tailored, zero guesswork:
+1. **Present the live SOTA video picker** from the `Max — State-of-the-art high-resolution video options`
+   table in `P/model_tiers.md` (using the multiple-choice question tool when available):
+   - Lead with **Seedance 2.5 (`1080p` / `4K`, Max default)** — same Seedance 2.5 family as Pro, unlocked
+     at native `1080p` and `4K` with native audio and first+last frame control.
+   - Offer the top dynamically fetched `1080p`/`4K` SOTA alternatives currently live on Tokentide (with
+     their Arena rank when rated, supported resolutions, audio/end-frame strengths, and live 5 s price).
+   - Ask whether they want native **`1080p` (Recommended for fast delivery)** or **`4K`** (when the chosen
+     model supports `4K`), and run `models.py choose --project P --tier max` (plus `i2v=<chosen_id>` if they
+     picked an alternative SOTA model).
+2. **White-glove creative checkpoints:** Before animating video clips, briefly confirm the Visual Bible /
+   Style Master look, voice tone & language, music mood, and show the keyframe contact sheets side by side
+   so the user approves the exact look of every hero frame before paying for `1080p`/`4K` video generation.
+3. Always show the exact updated itemized quote (`models.py cost --project P --resolution <1080p|4k> ...`)
+   before running any paid generation.
 > Which level would you like?
 
 - Write "Quote: $X" when the table says quote, and "About $X (estimate)" when it says estimate (§5).

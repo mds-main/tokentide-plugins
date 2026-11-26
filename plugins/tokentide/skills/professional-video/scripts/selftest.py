@@ -692,8 +692,14 @@ def main():
           and dflt.get("i2v_audio") == "seedance-2-5-flash-image-to-video-basic"
           and dflt.get("tts") == "elevenlabs-tts-v4-turbo"
           and tiers["default"]["total_usd"] > 0 and tiers["default"]["label"] == "quote", json.dumps(tiers.get("default")))
-    check("Essential / Pro / Max video models (Pro uses Seedance 2.5 Flash default)", [got[lv].get("i2v") for lv in M.LEVELS] == [
-        "seedance-2-5-image-to-video-basic", "seedance-2-5-flash-image-to-video-basic", "veo3.1-full-image-to-video"], json.dumps(got))
+    check("Essential / Pro / Max video models (Pro uses Seedance 2.5 Flash 720p; Max uses Seedance 2.5 1080p + SOTA picker)",
+          got["pro"].get("i2v") == "seedance-2-5-flash-image-to-video-basic"
+          and got["max"].get("i2v") == "seedance-2-5-image-to-video-basic"
+          and tiers["tiers"]["pro"].get("video_resolution") == "720p"
+          and tiers["tiers"]["max"].get("video_resolution") == "1080p"
+          and len(tiers.get("max_sota_video") or []) >= 2
+          and any(o["id"] == "seedance-2-5-image-to-video-basic" and o.get("default") for o in tiers["max_sota_video"]),
+          json.dumps({"got": got, "max_sota": tiers.get("max_sota_video")}))
     check("voice and music levels come from the estimate; ElevenLabs v4 is never a default (v4 Turbo instead)",
           got["max"].get("tts") == "elevenlabs-tts-v4-turbo" and got["pro"].get("tts") == "elevenlabs-tts-v4-turbo"
           and got["essential"].get("tts") == "tts-kokoro"

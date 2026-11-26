@@ -56,14 +56,20 @@ For each item in the Reality Inventory, choose the fastest, highest-fidelity acq
      and graphics programmatically (HTML/SVG → PNG at exact canvas dimensions).
    - **Local files already in the workspace:** discover and inspect existing photos, clips, logos, fonts,
      docs and data in the user's folder before asking for duplicates.
-2. **Ask the user once, cleanly and specifically, ONLY for what you cannot reach yourself:**
-   - Personal photos or private footage (people, pets, venues, events, memories).
-   - Unreleased products, high-res original photography, transparent logos, licensed brand fonts, raw
-     screen recordings or internal brand guidelines.
-   - Clarifications that affect visual truth (exact workflow to show, wardrobe/era, must-include moments).
-   - Bundle all requests into **one concise message** explaining *why* each asset makes the final video
-     dramatically better (e.g. "2–4 clear, well-lit photos per person from front and 3/4 angles keep faces
-     consistent across every shot").
+2. **Ask the user once, cleanly and specifically, whenever visual references are missing or insufficient:**
+   - **Hard detection & pause rule:** If your Reality Inventory reveals that you do **not** have the visual
+     references needed to produce a high-quality, visually consistent video tailored to the user's request —
+     for instance: missing, blurry, low-resolution, or single-angle photos of real people/pets, physical
+     products, packaging, brand logos, licensed fonts, private venues/events, gated/local screens you cannot
+     access, or a specific style/character look the user asked for — **STOP before Phase 5 and ask the user
+     to provide those images.**
+   - Bundle all requests into **one concise, helpful message** explaining *why* each image makes the final
+     video dramatically sharper and more consistent (e.g. "2–4 clear, well-lit photos per person from front
+     and 3/4 angles keep faces consistent across every shot", "1–2 clean product shots on a plain background
+     preserve exact labels and proportions").
+   - **Never silently fabricate or guess** missing real-world subjects or user-specific visuals. Only proceed
+     without user-supplied photos if the user explicitly confirms they have none to share (and then lock a
+     Visual Bible / Style Master + Character Sheet first, §7).
 3. **Generate & lock Style Anchors for invented worlds:**
    - When no real-world photo exists (original stories, trailers, explainers, stylized art), generate
      1–2 **Style Master** frames and any **Character/Asset Sheets** first, review them visually (and with
@@ -233,4 +239,7 @@ P/assets/
 - [ ] Every real product, brand mark, place or custom object has real references in `product/`, `brand/`,
       or `references/`.
 - [ ] Every invented/stylized world or recurring character has an approved Style Master / Character Sheet.
+- [ ] **Missing-references check passed:** If any visual reference needed for high quality and consistency
+      was missing, blurry, or single-angle, you asked the user for those images (or received explicit
+      confirmation to proceed with a locked Style Master instead).
 - [ ] Zero real-world subjects are left to ungrounded text-only hallucination.

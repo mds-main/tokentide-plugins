@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "tokentide",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "Use the Tokentide API from ChatGPT and Codex: live model prices and the tide table, quotes and cost estimates, the model catalog, your balance and usage, and paid model calls within your connection's limits. Includes the professional-video skill for producing any kind of studio-grade video (16:9, 9:16, 1:1) grounded in real visual references and live captures with Tokentide's models and FFmpeg.",
   "author": {
     "name": "Tokentide",
@@ -98,7 +98,7 @@
         "commerce_description": "The plugin sells nothing. Its paid tools run models billed to the user's existing Tokentide balance, within the daily cap and privacy mode chosen when connecting; balance top-ups happen on tokentide.app."
       },
       "publication": {
-        "release_notes": "Unified Pro as the recommended default tier in professional-video (Seedance 2.5 Flash for video, ElevenLabs TTS v4 Turbo for voice-over, plus live Pro image and music models) alongside Essential, Pro, Max and custom model picks, with a mandatory itemized whole-video quote before generation.",
+        "release_notes": "Added flagship Max 1080p/4K tier (Seedance 2.5 default plus dynamically fetched SOTA 1080p/4K video model picker and concierge checkpoints), kept Pro default at 720p Seedance 2.5 Flash + ElevenLabs v4 Turbo, added tier-aware resolution defaults in video.py, and added an explicit missing-references pause gate in Phase 1.",
         "translations": {
           "es-ES": {
             "subtitle": "Precios y uso de modelos de IA",

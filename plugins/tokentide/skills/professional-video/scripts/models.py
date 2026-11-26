@@ -100,8 +100,8 @@ ARENA_MAX_AGE_H = 24
 # Models the skill never picks by default (levels, options, suggestions), with the variant it uses instead. Only an
 # explicit request from the user for that exact model selects one (models.py choose warns).
 NOT_DEFAULT = {"elevenlabs-tts-v4": "elevenlabs-tts-v4-turbo"}
-# Default models the skill ALWAYS proposes first (unless the user explicitly states different models), whenever
-# they are available in the live catalog for the current key.
+# Default models the skill ALWAYS proposes first for Pro (the recommended default tier), whenever available in
+# the live catalog for the current key (Seedance 2.5 Flash caps at 720p native clips; masters export at 1080p).
 DEFAULT_MODELS = {
     "i2v": "seedance-2-5-flash-image-to-video-basic",
     "i2v_audio": "seedance-2-5-flash-image-to-video-basic",
@@ -109,6 +109,16 @@ DEFAULT_MODELS = {
     "t2v": "seedance-2-5-flash-text-to-video-basic",
     "tts": "elevenlabs-tts-v4-turbo",
 }
+# Default models for Max (flagship high-resolution tier: same Seedance 2.5 family at 1080p / 4K, paired with
+# dynamically fetched SOTA 1080p/4K alternatives so the user can choose).
+MAX_DEFAULT_MODELS = {
+    "i2v": "seedance-2-5-image-to-video-basic",
+    "i2v_audio": "seedance-2-5-image-to-video-basic",
+    "r2v": "seedance-2-5-reference-to-video-basic",
+    "t2v": "seedance-2-5-text-to-video-basic",
+    "tts": "elevenlabs-tts-v4-turbo",
+}
+TIER_RESOLUTION = {"essential": "720p", "pro": "720p", "default": "720p", "max": "1080p"}
 # The skill's own estimate for jobs no leaderboard rates (Nov 2026): a rough quality prior per maker or model
 # family, matched on the model id (first match wins). Recency (newest version first, 🆕 bonus) and tier words
 # (hd/max vs turbo/flash) adjust it. It ranks; it does not measure.
@@ -1232,6 +1242,64 @@ def level_cell(d, job) -> str:
     return f"{d['name']} (`{d['id']}`){rank} · {price}"
 
 
+def sota_max_video_options(models_list, i2v_res, pricer, plan, now, max_options=6) -> list:
+    """Dynamically curated high-resolution (1080p / 4K) SOTA i2v video options for the flagship Max tier,
+    with Seedance 2.5 (Max default) first, followed by top Arena-rated and newest flagship models across families."""
+    by_id = {d["id"]: dict(d) for d in (i2v_res.get("priced") or []) + (i2v_res.get("rated") or [])}
+    all_i2v = recent(candidates(models_list, "i2v", prune=False), 40)
+    hi_res = []
+    for d in all_i2v:
+        ress = d.get("resolutions") or []
+        if not any(res_px(r) >= 1080 for r in ress):
+            continue
+        cur = by_id.get(d["id"]) or dict(d)
+        cur.setdefault("resolutions", ress)
+        cur.setdefault("durations", d.get("durations") or [])
+        cur.setdefault("audio", d.get("audio"))
+        cur.setdefault("audio_guess", d.get("audio_guess"))
+        cur.setdefault("end_frame", d.get("end_frame"))
+        hi_res.append(cur)
+    # Sort: Max default (Seedance 2.5) first, then Arena-rated by score, then newest flagship by family prior.
+    max_def = MAX_DEFAULT_MODELS["i2v"]
+    def _rank_key(d):
+        is_def = 0 if d["id"] == max_def else 1
+        has_lb = 0 if d.get("lb_score") else 1
+        lb = -(d.get("lb_score") or 0.0)
+        fam_p = -(FAMILY_PRIOR.get(d.get("family", ""), DEFAULT_PRIOR)
+                  + (0.4 if d.get("tier") == "premium" else -0.4 if d.get("tier") == "fast" else 0.0))
+        ts = -(d["created"].timestamp() if d.get("created") else 0.0)
+        return (is_def, has_lb, lb, fam_p, ts)
+
+    ranked = sorted(hi_res, key=_rank_key)
+    picked, seen_fams = [], set()
+    for d in ranked:
+        fam = d.get("family") or d["id"]
+        if d["id"] != max_def and fam in seen_fams:
+            continue
+        seen_fams.add(fam)
+        usd, lst, basis, note = pricer.video(d["id"], plan["clip_seconds"], "1080p", bool(d.get("audio") or d.get("audio_guess")))
+        res_4k = next((r for r in (d.get("resolutions") or []) if res_px(r) >= 2160), None)
+        hi_labels = [r for r in (d.get("resolutions") or []) if res_px(r) >= 1080]
+        picked.append({
+            "id": d["id"],
+            "name": d["name"],
+            "default": d["id"] == max_def,
+            "arena_rank": d.get("lb_rank"),
+            "resolutions": hi_labels,
+            "supports_4k": bool(res_4k),
+            "audio": bool(d.get("audio") or d.get("audio_guess")),
+            "end_frame": bool(d.get("end_frame")),
+            "clip_usd": usd,
+            "list_usd": lst,
+            "usd_per_s": round(usd / max(1, plan["clip_seconds"]), 4) if usd is not None else None,
+            "basis": basis,
+            "note": note,
+        })
+        if len(picked) >= max_options:
+            break
+    return picked
+
+
 def cmd_tiers(a):
     global LANE
     LANE = a.lane or "standard"
@@ -1247,10 +1315,11 @@ def cmd_tiers(a):
     pricer = Pricer(models, LANE, fallback_prices(root))
     res = {job: tier_job(models_list, job, ranks, now, a, pricer) for job in TIER_JOBS}
     bg = bg_remove_model(models)
+    sota_max = sota_max_video_options(models_list, res["i2v"], pricer, plan, now)
     report = {"generated": common.now_iso(), "lane": LANE, "plan": plan, "recent": a.recent,
               "source": {"name": ranks.get("source"), "date": ranks.get("date"), "credit": ranks.get("credit"),
                          "published": ranks.get("published") or {}},
-              "jobs": {}, "tiers": {}}
+              "jobs": {}, "tiers": {}, "max_sota_video": sota_max}
     for job, r in res.items():
         report["jobs"][job] = {"board": r["board"], "basis": r["basis"], "recent": r["recent"],
                                "rated": [jsonable(d) for d in r["rated"]],
@@ -1260,8 +1329,9 @@ def cmd_tiers(a):
                                "unpriced": {d["id"]: d.get("quote_error", "no price") for d in r["unpriced"]}}
     for lv in LEVELS:
         picks = {job: (r["levels"].get(lv) or {}).get("id") for job, r in res.items()}
-        # Pro is the skill's recommended default tier: pin Seedance 2.5 Flash (video) and ElevenLabs TTS v4 Turbo
-        # (voice-over) whenever available in the live catalog, alongside Pro-level images and music.
+        tier_res = a.resolution or TIER_RESOLUTION.get(lv, plan["resolution"])
+        tier_plan = {**plan, "resolution": tier_res}
+        # Pro is the skill's recommended default tier: Seedance 2.5 Flash (720p) + ElevenLabs TTS v4 Turbo.
         if lv == "pro":
             if DEFAULT_MODELS["i2v"] in models:
                 picks["i2v"] = DEFAULT_MODELS["i2v"]
@@ -1269,19 +1339,34 @@ def cmd_tiers(a):
                 picks["r2v"] = DEFAULT_MODELS["r2v"]
             if DEFAULT_MODELS["tts"] in models:
                 picks["tts"] = DEFAULT_MODELS["tts"]
+        # Max is the flagship high-resolution tier: defaults to Seedance 2.5 (1080p / 4K) + ElevenLabs v4 Turbo,
+        # and offers dynamically fetched SOTA 1080p/4K alternatives in max_sota_video.
+        elif lv == "max":
+            if MAX_DEFAULT_MODELS["i2v"] in models:
+                picks["i2v"] = MAX_DEFAULT_MODELS["i2v"]
+            if MAX_DEFAULT_MODELS["r2v"] in models:
+                picks["r2v"] = MAX_DEFAULT_MODELS["r2v"]
+            if MAX_DEFAULT_MODELS["tts"] in models:
+                picks["tts"] = MAX_DEFAULT_MODELS["tts"]
         if lv == "pro" and picks.get("i2v") == DEFAULT_MODELS["i2v"]:
             picks["i2v_audio"] = DEFAULT_MODELS["i2v_audio"]
+        elif lv == "max" and picks.get("i2v") == MAX_DEFAULT_MODELS["i2v"]:
+            picks["i2v_audio"] = MAX_DEFAULT_MODELS["i2v_audio"]
         else:
             picks["i2v_audio"] = audio_pick(res["i2v"], lv, models)
         picks["sfx"] = sfx_pick(models_list, picks.get("music"), a.recent)
         if bg:
             picks["bg_remove"] = bg
-        rows = plan_lines(picks, plan, pricer)
-        report["tiers"][lv] = {"name": LEVEL_NAMES[lv], "models": {k: v for k, v in picks.items() if v and k != "bg_remove"},
-                               "names": {k: display_name(models[v]) for k, v in picks.items() if v and v in models},
-                               "lines": rows, **summarize(rows, plan, models, LANE)}
-    # Recommended default stack is an exact alias of the Pro tier (Seedance 2.5 Flash for video + ElevenLabs TTS v4
-    # Turbo for voice-over + Pro-level images and music).
+        rows = plan_lines(picks, tier_plan, pricer)
+        tier_entry = {"name": LEVEL_NAMES[lv], "video_resolution": tier_res,
+                      "models": {k: v for k, v in picks.items() if v and k != "bg_remove"},
+                      "names": {k: display_name(models[v]) for k, v in picks.items() if v and v in models},
+                      "lines": rows, **summarize(rows, tier_plan, models, LANE)}
+        if lv == "max":
+            tier_entry["sota_video_options"] = sota_max
+        report["tiers"][lv] = tier_entry
+    # Recommended default stack is an exact alias of the Pro tier (Seedance 2.5 Flash 720p + ElevenLabs TTS v4
+    # Turbo + Pro-level images and music).
     report["default"] = {**report["tiers"]["pro"], "name": "Pro (Recommended default)"}
     # ---- the report the agent reads (and adapts for the user, in the user's language)
     src = report["source"]
@@ -1289,7 +1374,7 @@ def cmd_tiers(a):
     d_info = report["default"]
     L += [
         "## Recommended default: Pro (propose first unless the user specifies other models)",
-        f"- **Video:** {d_info['names'].get('i2v', '—')} (`{d_info['models'].get('i2v', '—')}`)",
+        f"- **Video:** {d_info['names'].get('i2v', '—')} (`{d_info['models'].get('i2v', '—')}`, {d_info.get('video_resolution', '720p')} clips → 1080p master)",
         f"- **Voice-over:** {d_info['names'].get('tts', '—')} (`{d_info['models'].get('tts', '—')}`)",
         f"- **Images (compositing):** {d_info['names'].get('keyframe', '—')} (`{d_info['models'].get('keyframe', '—')}`)",
         f"- **Images (scenes):** {d_info['names'].get('scene', '—')} (`{d_info['models'].get('scene', '—')}`)",
@@ -1309,9 +1394,9 @@ def cmd_tiers(a):
     L += [f"Candidates: the {a.recent} most recent models per job in the live catalog. Prices: what Tokentide charges "
           "right now (live quotes for video and music, catalog price × today's multiplier for images and voices).",
           f"Plan priced: {plan['videos']} videos × {plan['shots']} shots × {plan['takes']} takes of {plan['clip_seconds']} s "
-          f"at {plan['resolution']} ({plan['audio_shots']} shot per video with real sound), {plan['keyframes']} product "
-          f"images per shot, {plan['scenes']} backgrounds, ~{plan['vo_chars']} characters of voice-over, a "
-          f"{plan['music_seconds']} s track and {plan['sfx']} sound effects per video.", ""]
+          f"(Pro/Essential at 720p, Max at {report['tiers']['max']['video_resolution']}; {plan['audio_shots']} shot per video "
+          f"with real sound), {plan['keyframes']} product images per shot, {plan['scenes']} backgrounds, ~{plan['vo_chars']} "
+          f"characters of voice-over, a {plan['music_seconds']} s track and {plan['sfx']} sound effects per video.", ""]
     L += privacy_warning(models_list)
     L += ["| | Essential | Pro | Max |", "|---|---|---|---|"]
     labels = {"i2v": "Video", "keyframe": "Images: product shots", "scene": "Images: backgrounds", "tts": "Voice",
@@ -1327,11 +1412,12 @@ def cmd_tiers(a):
                 elif mid in models:
                     d = describe(models[mid], job)
                     if job == "i2v":
-                        usd, _, _, _ = pricer.video(mid, plan["clip_seconds"], plan["resolution"], False)
+                        usd, _, _, _ = pricer.video(mid, plan["clip_seconds"], report["tiers"][lv]["video_resolution"], False)
                         if usd is not None:
                             d["usd_per_s"] = round(usd / max(1, plan["clip_seconds"]), 4)
             return level_cell(d, job)
         L.append(f"| {labels[job]} | " + " | ".join(_cell(lv) for lv in LEVELS) + " |")
+    L.append("| Video clip resolution | " + " | ".join(report["tiers"][lv]["video_resolution"] for lv in LEVELS) + " |")
     L.append("| Clips with sound | " + " | ".join(
         f"`{report['tiers'][lv]['models'].get('i2v_audio') or '—'}`" for lv in LEVELS) + " |")
     L.append("| ≈ per video | " + " | ".join(money(report["tiers"][lv]["per_video_usd"]) for lv in LEVELS) + " |")
@@ -1340,9 +1426,22 @@ def cmd_tiers(a):
     lts = [report["tiers"][lv].get("lowtide_usd") for lv in LEVELS]
     if any(lts):
         L.append("| with Low Tide (slower, cheaper) | " + " | ".join(f"≈ {money(x)}" if x else "—" for x in lts) + " |")
-    L += ["", "Essential = " + LEVEL_WHY["essential"] + "; Pro (Recommended default) = Seedance 2.5 Flash for video + "
+    L += ["", "Essential = " + LEVEL_WHY["essential"] + "; Pro (Recommended default) = Seedance 2.5 Flash (720p clips) + "
           "ElevenLabs TTS v4 Turbo for voice (when available), plus " + LEVEL_WHY["pro"] + " for images and music; "
-          "Max = " + LEVEL_WHY["max"] + ".", ""]
+          "Max (Flagship 1080p / 4K) = Seedance 2.5 (1080p / 4K default) or your pick of live SOTA video models + "
+          "ElevenLabs TTS v4 Turbo + " + LEVEL_WHY["max"] + " for images and music.", ""]
+    if sota_max:
+        L += ["## Max — State-of-the-art high-resolution video options (present these when the user picks Max)",
+              "| model | id | Arena | high-res | audio | end frame | 5s @ 1080p |",
+              "|---|---|---|---|---|---|---|"]
+        for opt in sota_max:
+            tag = " *(Max default)*" if opt["default"] else ""
+            ar = f"#{opt['arena_rank']}" if opt.get("arena_rank") else "latest"
+            hr = ", ".join(opt.get("resolutions") or ["1080p"])
+            L.append(f"| {opt['name']}{tag} | `{opt['id']}` | {ar} | {hr} | "
+                     f"{'yes' if opt['audio'] else 'no'} | {'yes' if opt['end_frame'] else 'no'} | "
+                     f"{money(opt.get('clip_usd'))} |")
+        L += ["Switch Max video model with: `models.py choose --project <P> --tier max i2v=<id>` (and set `video.resolution` to `1080p` or `4k` in specs).", ""]
     for lv in LEVELS:
         t = report["tiers"][lv]
         if t["missing"] or t["estimated"]:
@@ -1546,13 +1645,13 @@ def cmd_choose(a):
         common.die("Pass --tier default|essential|pro|max and/or job=model_id pairs.")
     if a.tier:
         tiers = common.load_json(root / "model_tiers.json", default={}) or {}
-        level = ((tiers.get("default") or {}).get("models") or {}) if a.tier == "default" else (
-            ((tiers.get("tiers") or {}).get(a.tier) or {}).get("models") or {}
-        )
+        tier_block = (tiers.get("default") or {}) if a.tier == "default" else ((tiers.get("tiers") or {}).get(a.tier) or {})
+        level = tier_block.get("models") or {}
         if not level:
             common.die(f"No level '{a.tier}' in {root}/model_tiers.json — run `models.py tiers --project {root}` first.")
         picks.update({k: v for k, v in level.items() if v})
         meta["models_tier"] = a.tier
+        meta["video_resolution"] = tier_block.get("video_resolution") or TIER_RESOLUTION.get(a.tier, "1080p")
     for item in a.picks or []:
         if "=" not in item:
             common.die(f"expected job=model_id, got {item}")

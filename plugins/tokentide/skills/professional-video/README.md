@@ -56,13 +56,13 @@ Then ask your agent, e.g. "Create a 90-second 16:9 walkthrough video for my app 
 
 ## Choosing models & up-front quote
 By default, every new request proposes the **Pro** tier — **Seedance 2.5 Flash**
-(`seedance-2-5-flash-image-to-video-basic`) for video and **ElevenLabs TTS v4 Turbo**
-(`elevenlabs-tts-v4-turbo`) for voice-overs, paired with live Pro-level image and music models from
-Tokentide — unless you explicitly specify different models or pick another level from the **Essential /
-Pro / Max** tiers (`models.py tiers`, Arena leaderboard ratings for video/images under CC BY 4.0 and skill
-estimates for voice/music). Before any paid generation starts, `models.py cost` always presents the full
-itemized estimated quote for the whole video (video clips, images/keyframes, voice-over, music and SFX).
-Details: `references/models.md`.
+(`seedance-2-5-flash-image-to-video-basic`, `720p` clips assembled into a `1080p` master) for video and
+**ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with live Pro-level image
+and music models from Tokentide — alongside **Essential** and the flagship **Max** tier (higher-resolution
+**`1080p` / `4K`** using **Seedance 2.5** by default, plus a live dynamically fetched menu of SOTA
+`1080p`/`4K` video models to choose from with concierge creative checkpoints), or custom model picks.
+Before any paid generation starts, `models.py cost` always presents the full itemized estimated quote for
+the whole video (video clips, images/keyframes, voice-over, music and SFX). Details: `references/models.md`.
 
 ## Tokentide-specific behaviour
 - Prices = Venice list × the tide multiplier (cheapest late in the UTC day); `--lane lowtide` for

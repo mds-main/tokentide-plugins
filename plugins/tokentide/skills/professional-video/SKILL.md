@@ -60,11 +60,13 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 - **Right-size pre-production to the request.** Full market/VOC/competitor research for growth campaigns;
   verified workflow/fact storyboard for tutorials, explainers and documentaries; creative treatment and
   visual bible for personal, narrative, artistic, event or commercial films. Never force irrelevant steps.
-- **Default Pro tier & mandatory up-front whole-video quote.** Unless the user explicitly requests other
-  models or another tier, ALWAYS propose **Pro (Recommended)** by default — **Seedance 2.5 Flash**
-  (`seedance-2-5-flash-image-to-video-basic`) for video and **ElevenLabs TTS v4 Turbo**
-  (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with live Pro-level image and music models from
-  Tokentide's catalog — alongside the full **Essential / Pro / Max** tiers or custom model selection.
+- **Default Pro tier, concierge Max tier & mandatory up-front whole-video quote.** Unless the user
+  explicitly requests other models or another tier, ALWAYS propose **Pro (Recommended)** by default —
+  **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`, `720p` clips → `1080p` master) for
+  video and **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with live
+  Pro-level image and music models — alongside **Essential** and our flagship **Max** tier (higher-res
+  **`1080p` / `4K`** using **Seedance 2.5** by default, plus a live dynamically fetched menu of SOTA
+  `1080p`/`4K` video models so the user can choose, with a white-glove interactive studio workflow).
   **NEVER start paid generation without first showing the itemized estimated quote (price in USD) for
   the WHOLE video** — video clips, images/keyframes, voice-over, music (if any), and SFX — and getting
   the user's OK. Specs use aliases (`@i2v`, `@tts`), never hard-coded ids.
@@ -104,10 +106,14 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 0. **Model proposal, before any paid generation** (`references/models.md` §1): in the user's language,
    with the multiple-choice question tool when available, ALWAYS propose the **Pro** tier by default
    unless the user already named different models or another tier:
-   - **"Pro (Recommended)"**: **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`) for
-     video and **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with
-     Tokentide's live Pro-level image and music models — and we show the full itemized price quote for
-     the whole video before generating anything.
+   - **"Pro (Recommended)"**: **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`, `720p`
+     native clips assembled into a crisp `1080p` master) for video and **ElevenLabs TTS v4 Turbo**
+     (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with Tokentide's live Pro-level image and music
+     models — and we show the full itemized price quote for the whole video before generating anything.
+   - **"Max (Flagship 1080p / 4K studio experience)"**: defaults to **Seedance 2.5**
+     (`seedance-2-5-image-to-video-basic`) at `1080p` (or `4K`) + **ElevenLabs TTS v4 Turbo** + top
+     flagship image and music models, AND lets you choose among dynamically fetched state-of-the-art
+     `1080p`/`4K` video models from Tokentide's live catalog with bespoke creative & keyframe sign-offs.
    - **"Compare Essential / Pro / Max levels"**: compare the newest Tokentide models (Arena leaderboard
      ratings for video and images; skill's estimate for voice and music) across all three price/quality
      tiers.
@@ -152,8 +158,14 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
    - **User's custom models** (§2): `models.py match "<name>" ... --project P` → fill any unnamed jobs
      from `--tier pro` (so unnamed video stays Seedance 2.5 Flash and unnamed voice-over stays
      ElevenLabs v4 Turbo) → `models.py choose --project P ...`.
-   - **Compare levels** (§3–4): present **Essential**, **Pro** (recommended default) and **Max** from
-     `P/model_tiers.md` in plain words in the user's language → `models.py choose --project P --tier <level>`.
+   - **Compare levels & flagship Max concierge** (§3–4): present **Essential**, **Pro** (`720p` clips,
+     recommended default) and **Max** (`1080p` / `4K` flagship) from `P/model_tiers.md` in plain words in
+     the user's language → `models.py choose --project P --tier <level>`. **When the user picks Max**, give
+     them the most premium interactive experience: show the live dynamically fetched **SOTA `1080p`/`4K`
+     video model table** from `P/model_tiers.md` (`Seedance 2.5` as Max default alongside top live SOTA
+     alternatives), let them pick their preferred video model and resolution (`1080p` vs `4K`), and include
+     concierge creative checkpoints (Visual Bible / Style Master preview, voice tone confirmation, and
+     side-by-side keyframe review) before animating clips.
    - **Capability notes (`references/models.md` §9):**
      - **Multi-reference compositing:** verify `maxInputImages` (`models.py show <id>`) when combining ≥3 inputs.
      - **Upstream 409 on person-bearing Seedance `-basic` shots:** if a specific shot with real faces
@@ -187,10 +199,17 @@ element in the video, then gather every anchor intelligently:
      `16:9`; `540×960 @ 2x` for `9:16`), clean of popups, spinners, dev overlays, secrets or PII. Save
      sequential PNGs + `INDEX.md` (with focal `(x, y)` coordinates) in `P/assets/captures/` and inspect
      every capture visually.
-2. **User-supplied references (when only the user has them):** ask once clearly for multi-angle, well-lit
-   photos of any real people/pets (2–4 per individual + together if multi-person, with consent →
-   `P/assets/people/` + `IDENTITY.md`), high-res multi-angle photos of physical products/objects/places,
-   transparent logos (`P/assets/brand/`), licensed fonts (`P/assets/fonts/`), or real clips (`P/assets/footage/`).
+2. **Missing-References Pause Gate (MANDATORY when visual references are missing or insufficient):**
+   If your Reality Inventory detects that you do **not** have the visual references needed to produce a
+   high-quality, visually consistent video faithfully adapted to the user's request — e.g. real people,
+   presenters, groups or pets; physical products or packaging; brand logos or custom typography; real
+   venues/places/events; inaccessible private apps; or a specific aesthetic/character reference the user
+   described — **STOP before Phase 5 and ask the user once, clearly and specifically, for those images**
+   (explaining *why* each reference keeps consistency high and what angles/lighting work best: 2–4 sharp,
+   well-lit photos per person/product + together shots if multi-person, transparent logos in `P/assets/brand/`,
+   licensed fonts in `P/assets/fonts/`, or authentic clips in `P/assets/footage/`). Never silently guess or
+   hallucinate missing real-world subjects; only proceed with purely generated visuals (locking a Style Master
+   + Character Sheet first) if the user explicitly confirms they have no reference images to provide.
 3. **Visual Bible for creative/stylized worlds:** lock 1–2 **Style Master** images + any **Character /
    Asset Sheets** in `P/assets/references/` (plus `STYLE_BIBLE.md`) so every generated shot shares one
    unmistakable aesthetic.
