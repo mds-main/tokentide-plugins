@@ -686,8 +686,9 @@ def main():
     tiers = common.load_json(root / "model_tiers.json")
     got = {lv: tiers["tiers"][lv]["models"] for lv in M.LEVELS}
     dflt = tiers["default"]["models"]
-    check("default stack proposes Seedance 2.5 Flash for video and ElevenLabs v4 Turbo for voice-over",
-          dflt.get("i2v") == "seedance-2-5-flash-image-to-video-basic"
+    check("default stack is an exact alias of Pro (Seedance 2.5 Flash video + ElevenLabs v4 Turbo voice)",
+          dflt == got["pro"]
+          and dflt.get("i2v") == "seedance-2-5-flash-image-to-video-basic"
           and dflt.get("i2v_audio") == "seedance-2-5-flash-image-to-video-basic"
           and dflt.get("tts") == "elevenlabs-tts-v4-turbo"
           and tiers["default"]["total_usd"] > 0 and tiers["default"]["label"] == "quote", json.dumps(tiers.get("default")))

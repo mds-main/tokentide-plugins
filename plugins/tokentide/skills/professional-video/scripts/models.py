@@ -1260,10 +1260,13 @@ def cmd_tiers(a):
                                "unpriced": {d["id"]: d.get("quote_error", "no price") for d in r["unpriced"]}}
     for lv in LEVELS:
         picks = {job: (r["levels"].get(lv) or {}).get("id") for job, r in res.items()}
-        # Pro level also reflects the skill's required defaults when available in the live catalog.
+        # Pro is the skill's recommended default tier: pin Seedance 2.5 Flash (video) and ElevenLabs TTS v4 Turbo
+        # (voice-over) whenever available in the live catalog, alongside Pro-level images and music.
         if lv == "pro":
             if DEFAULT_MODELS["i2v"] in models:
                 picks["i2v"] = DEFAULT_MODELS["i2v"]
+            if DEFAULT_MODELS["r2v"] in models:
+                picks["r2v"] = DEFAULT_MODELS["r2v"]
             if DEFAULT_MODELS["tts"] in models:
                 picks["tts"] = DEFAULT_MODELS["tts"]
         if lv == "pro" and picks.get("i2v") == DEFAULT_MODELS["i2v"]:
@@ -1277,30 +1280,15 @@ def cmd_tiers(a):
         report["tiers"][lv] = {"name": LEVEL_NAMES[lv], "models": {k: v for k, v in picks.items() if v and k != "bg_remove"},
                                "names": {k: display_name(models[v]) for k, v in picks.items() if v and v in models},
                                "lines": rows, **summarize(rows, plan, models, LANE)}
-    # Recommended default stack: ALWAYS proposes Seedance 2.5 Flash for video and ElevenLabs TTS v4 Turbo for
-    # voice-overs (whenever available in the live catalog), paired with Pro-level images and music.
-    def_picks = dict(report["tiers"]["pro"]["models"])
-    for job, mid in DEFAULT_MODELS.items():
-        if job in ("i2v", "i2v_audio", "tts") and mid in models:
-            def_picks[job] = mid
-    if DEFAULT_MODELS["r2v"] in models:
-        def_picks.setdefault("r2v", DEFAULT_MODELS["r2v"])
-    if bg:
-        def_picks["bg_remove"] = bg
-    def_rows = plan_lines(def_picks, plan, pricer)
-    report["default"] = {
-        "name": "Recommended default",
-        "models": {k: v for k, v in def_picks.items() if v and k != "bg_remove"},
-        "names": {k: display_name(models[v]) for k, v in def_picks.items() if v and v in models},
-        "lines": def_rows,
-        **summarize(def_rows, plan, models, LANE),
-    }
+    # Recommended default stack is an exact alias of the Pro tier (Seedance 2.5 Flash for video + ElevenLabs TTS v4
+    # Turbo for voice-over + Pro-level images and music).
+    report["default"] = {**report["tiers"]["pro"], "name": "Pro (Recommended default)"}
     # ---- the report the agent reads (and adapts for the user, in the user's language)
     src = report["source"]
     L = [f"# Model levels — live from Tokentide {now:%Y-%m-%d} ({LANE} lane)", ""]
     d_info = report["default"]
     L += [
-        "## Recommended default (propose first unless the user specifies other models)",
+        "## Recommended default: Pro (propose first unless the user specifies other models)",
         f"- **Video:** {d_info['names'].get('i2v', '—')} (`{d_info['models'].get('i2v', '—')}`)",
         f"- **Voice-over:** {d_info['names'].get('tts', '—')} (`{d_info['models'].get('tts', '—')}`)",
         f"- **Images (compositing):** {d_info['names'].get('keyframe', '—')} (`{d_info['models'].get('keyframe', '—')}`)",
@@ -1308,7 +1296,7 @@ def cmd_tiers(a):
         f"- **Music:** {d_info['names'].get('music', '—')} (`{d_info['models'].get('music', '—')}`)",
         f"- **Total ({plan['videos']} videos):** **{money(d_info['total_usd'])}** ({d_info['label']}, ≈ {money(d_info['per_video_usd'])}/video)"
         + (f" · Low Tide ≈ {money(d_info['lowtide_usd'])}" if d_info.get("lowtide_usd") else ""),
-        "Choose with: `models.py choose --project <P> --tier default`",
+        "Choose with: `models.py choose --project <P> --tier pro` (`--tier default` is an alias)",
         "",
     ]
     if ranks["boards"]:
@@ -1352,8 +1340,9 @@ def cmd_tiers(a):
     lts = [report["tiers"][lv].get("lowtide_usd") for lv in LEVELS]
     if any(lts):
         L.append("| with Low Tide (slower, cheaper) | " + " | ".join(f"≈ {money(x)}" if x else "—" for x in lts) + " |")
-    L += ["", "Essential = " + LEVEL_WHY["essential"] + "; Pro = " + LEVEL_WHY["pro"] + "; Max = " + LEVEL_WHY["max"] +
-          " (each is on the price/quality frontier of its job).", ""]
+    L += ["", "Essential = " + LEVEL_WHY["essential"] + "; Pro (Recommended default) = Seedance 2.5 Flash for video + "
+          "ElevenLabs TTS v4 Turbo for voice (when available), plus " + LEVEL_WHY["pro"] + " for images and music; "
+          "Max = " + LEVEL_WHY["max"] + ".", ""]
     for lv in LEVELS:
         t = report["tiers"][lv]
         if t["missing"] or t["estimated"]:
@@ -1376,7 +1365,7 @@ def cmd_tiers(a):
         if r["unpriced"]:
             L.append("No price: " + ", ".join(f"`{d['id']}` ({d.get('quote_error', 'no price')[:60]})" for d in r["unpriced"][:6]))
         L.append("")
-    L += ["Then: `models.py choose --project <P> --tier default` (or `essential|pro|max`) and tell the user the models in plain words.",
+    L += ["Then: `models.py choose --project <P> --tier pro` (or `essential|max`, or `--tier default` alias) and tell the user the models in plain words.",
           "Exact cost of a level for another plan: `models.py cost --project <P> --tier <level> --videos <n>`."]
     text = "\n".join(L) + "\n"
     out_dir = root or Path(".")

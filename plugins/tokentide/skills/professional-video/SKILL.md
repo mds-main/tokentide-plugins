@@ -60,14 +60,14 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 - **Right-size pre-production to the request.** Full market/VOC/competitor research for growth campaigns;
   verified workflow/fact storyboard for tutorials, explainers and documentaries; creative treatment and
   visual bible for personal, narrative, artistic, event or commercial films. Never force irrelevant steps.
-- **Default models & mandatory up-front whole-video quote.** Unless the user explicitly requests other
-  models, ALWAYS propose by default **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`)
-  for video and **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with
-  live Pro-level image and music models from Tokentide's catalog (also offering Essential / Pro / Max
-  comparison or custom model choice if the user prefers). **NEVER start paid generation without first
-  showing the itemized estimated quote (price in USD) for the WHOLE video** — video clips, images/keyframes,
-  voice-over, music (if any), and SFX — and getting the user's OK. Specs use aliases (`@i2v`, `@tts`),
-  never hard-coded ids.
+- **Default Pro tier & mandatory up-front whole-video quote.** Unless the user explicitly requests other
+  models or another tier, ALWAYS propose **Pro (Recommended)** by default — **Seedance 2.5 Flash**
+  (`seedance-2-5-flash-image-to-video-basic`) for video and **ElevenLabs TTS v4 Turbo**
+  (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with live Pro-level image and music models from
+  Tokentide's catalog — alongside the full **Essential / Pro / Max** tiers or custom model selection.
+  **NEVER start paid generation without first showing the itemized estimated quote (price in USD) for
+  the WHOLE video** — video clips, images/keyframes, voice-over, music (if any), and SFX — and getting
+  the user's OK. Specs use aliases (`@i2v`, `@tts`), never hard-coded ids.
 - **Honest, lawful craft.** Disclose realistic AI when publishing, confirm consent for real people, prove
   factual claims, never leak secrets/PII in captures (`references/compliance.md`).
 - **Spend deliberately.** Quote before queueing, respect budget caps, batch non-urgent generation late in
@@ -85,9 +85,9 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 
 ## Master checklist (copy into your task list and adapt to the chosen workflow)
 ```
-[ ] 0  Model proposal: propose default Seedance 2.5 Flash (video) + ElevenLabs v4 Turbo (VO) + Pro images/music (or let user compare levels / choose custom)
+[ ] 0  Model proposal: propose Pro (default: Seedance 2.5 Flash video + ElevenLabs v4 Turbo VO + Pro images/music), or let user compare Essential / Pro / Max or choose custom
 [ ] 0  Setup: doctor --fix · link scripts · smart brief · init project (--canvas, --type)
-[ ] 0  Models & quote: models.py tiers → choose (--tier default | essential|pro|max | custom) → models.py cost → show FULL itemized quote for the whole video (video + images + VO + music + SFX) BEFORE any generation!
+[ ] 0  Models & quote: models.py tiers → choose (--tier pro | essential|max | custom) → models.py cost → show FULL itemized quote for the whole video (video + images + VO + music + SFX) BEFORE any generation!
 [ ] 1  Visual Grounding: complete Reality Inventory → capture autonomously (browser/computer use, pausing at login if gated) AND/OR gather user references AND/OR lock Style Master → inspect every anchor!
 [ ] 2  Direction / Research: Creative Treatment & Storyboard (OR Full Research & Virality Strategy for marketing campaigns) → approval gate (plan + cost)
 [ ] 5  Video specs (briefs/vNN.json — best visual modality per shot)
@@ -102,18 +102,19 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 
 ## Phase 0 — Setup
 0. **Model proposal, before any paid generation** (`references/models.md` §1): in the user's language,
-   with the multiple-choice question tool when available, ALWAYS propose the skill's default stack first
-   unless the user already named different models:
-   - **"Use the recommended defaults (Recommended)"**: **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`)
-     for video and **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with
-     Tokentide's live Pro-level image and music models — and we show the full itemized price quote for the
-     whole video before generating anything.
+   with the multiple-choice question tool when available, ALWAYS propose the **Pro** tier by default
+   unless the user already named different models or another tier:
+   - **"Pro (Recommended)"**: **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`) for
+     video and **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with
+     Tokentide's live Pro-level image and music models — and we show the full itemized price quote for
+     the whole video before generating anything.
    - **"Compare Essential / Pro / Max levels"**: compare the newest Tokentide models (Arena leaderboard
-     ratings for video and images; skill's estimate for voice and music) across three price/quality levels.
+     ratings for video and images; skill's estimate for voice and music) across all three price/quality
+     tiers.
    - **"I'll choose my own models"**: the user names specific models; you verify Tokentide availability
      and show the full itemized quote first.
    For a new batch in an existing project, add "keep the same models as last time". Skip when the request
-   is research/strategy only. User away → use `--tier default` (Seedance 2.5 Flash + ElevenLabs v4 Turbo)
+   is research/strategy only. User away → use `--tier pro` (Seedance 2.5 Flash + ElevenLabs v4 Turbo)
    if within budget, else Essential, and state the choice in one line. (When a video uses mostly real
    captures/footage with zero or few AI clips, note plainly that real visuals cost `$0` to generate and
    only audio plus any generative shots incur model spend.)
@@ -142,16 +143,17 @@ user never creates, copies or pastes a key. Never ask for one, and never print i
 3. **Project:** `python3 SKILL_DIR/scripts/init_project.py "<Title>" --type <general|campaign|guide|personal|commercial|explainer|story> --canvas <16:9|9:16|1:1> --platforms <...> --budget-usd 50 --languages en`
    creates `P = projects/<slug>/` with `assets/{people,captures,product,brand,fonts,references,footage,scenes,music,sfx}/`.
 4. **Models & mandatory whole-video price quote — always from the live catalog** (`references/models.md`):
-   - **Recommended default (ALWAYS proposed first unless the user specifies otherwise):** run
-     `models.py tiers --project P --videos <n>` then `models.py choose --project P --tier default`
-     (sets `@i2v`/`@i2v_audio` = **Seedance 2.5 Flash** `seedance-2-5-flash-image-to-video-basic`, `@tts` =
-     **ElevenLabs TTS v4 Turbo** `elevenlabs-tts-v4-turbo`, plus live Pro-level `@keyframe`, `@scene`,
-     `@music`, `@sfx`).
+   - **Pro default (ALWAYS proposed first unless the user specifies otherwise):** run
+     `models.py tiers --project P --videos <n>` then `models.py choose --project P --tier pro` (`--tier default`
+     is an exact alias; sets `@i2v`/`@i2v_audio` = **Seedance 2.5 Flash**
+     `seedance-2-5-flash-image-to-video-basic`, `@r2v` = `seedance-2-5-flash-reference-to-video-basic`,
+     `@tts` = **ElevenLabs TTS v4 Turbo** `elevenlabs-tts-v4-turbo`, plus live Pro-level `@keyframe`,
+     `@scene`, `@music`, `@sfx`).
    - **User's custom models** (§2): `models.py match "<name>" ... --project P` → fill any unnamed jobs
-     from `--tier default` (so unnamed video stays Seedance 2.5 Flash and unnamed voice-over stays
+     from `--tier pro` (so unnamed video stays Seedance 2.5 Flash and unnamed voice-over stays
      ElevenLabs v4 Turbo) → `models.py choose --project P ...`.
-   - **Compare levels** (§3–4): present **Essential**, **Pro** and **Max** from `P/model_tiers.md` in
-     plain words in the user's language → `models.py choose --project P --tier <level>`.
+   - **Compare levels** (§3–4): present **Essential**, **Pro** (recommended default) and **Max** from
+     `P/model_tiers.md` in plain words in the user's language → `models.py choose --project P --tier <level>`.
    - **Capability notes (`references/models.md` §9):**
      - **Multi-reference compositing:** verify `maxInputImages` (`models.py show <id>`) when combining ≥3 inputs.
      - **Upstream 409 on person-bearing Seedance `-basic` shots:** if a specific shot with real faces

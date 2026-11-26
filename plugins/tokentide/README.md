@@ -25,10 +25,11 @@ Gemini and other providers is at https://tokentide.app/docs/fallback.
   delivery — with Tokentide's image, video, voice and music models and FFmpeg. It grounds every real
   visual anchor first (asking for multi-angle reference photos for real subjects, capturing live apps or
   sites via browser or computer-use tools — pausing at the login screen when gated — or locking style
-  sheets), and always asks whether you name the models or want a recommendation: three levels
-  (Essential, Pro, Max) built from the newest models on Tokentide, the Arena leaderboard's quality
-  ratings for video and images (the skill's own estimate for voice and music) and Tokentide's prices.
-  Either way you get the total price before anything is made.
+  sheets), and proposes the **Pro** tier by default (**Seedance 2.5 Flash** for video and **ElevenLabs TTS
+  v4 Turbo** for voice-over, plus live Pro image and music models) alongside all three levels (**Essential**,
+  **Pro**, **Max** — built from the newest models on Tokentide, Arena leaderboard ratings for video and
+  images, and the skill's estimate for voice and music) or your own custom model picks. Either way you get
+  the full itemized price before anything is made.
 
 One package serves every host: `.claude-plugin/plugin.json` and `.mcp.json` describe it to Claude;
 `plugin.json` and `mcp.json` (the portable Agent Plugins format, with OpenAI's listing and sign-in
@@ -62,8 +63,8 @@ settings) describe it to ChatGPT and Codex. The skill is shared.
    in the Claude Code terminal, `/mcp`); you choose a daily spending cap and a privacy mode, and Tokentide
    creates an API key just for this connection. Revoke it any time under **Dashboard > API keys**.
 3. Ask, for example: "How does Tokentide pricing work?", "When is the cheapest time today to run 2
-   million tokens on the best coding model?", "What did I spend this week?", or "Make our new water
-   bottle go viral on TikTok, Reels and X".
+   million tokens on the best coding model?", "What did I spend this week?", or "Use /professional-video to
+   create a 90-second product walkthrough video for my app".
 
 That sign-in is the only step for you. When the video skill first runs its Python scripts, your agent
 links them to the connection itself (the connector's `link_local_scripts` tool returns a one-time code,

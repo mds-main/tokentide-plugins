@@ -18,8 +18,9 @@ made. Specs then refer to the choice by alias (`@i2v`, `@keyframe`, …).
 10. Cost model
 11. Fallback snapshot (Nov 2026) — only if the API is unreachable
 
-## 1. Default proposal & the first question
-Unless the user explicitly states different models in their request, **ALWAYS propose by default**:
+## 1. Default Pro tier & the first question
+Unless the user explicitly states different models or another tier in their request, **ALWAYS propose the
+`Pro` tier by default**:
 - **Video:** **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`, native sound included;
   `seedance-2-5-flash-reference-to-video-basic` for R2V)
 - **Voice-over:** **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`)
@@ -29,23 +30,23 @@ Unless the user explicitly states different models in their request, **ALWAYS pr
 Ask in the user's language, with the multiple-choice question tool when the app has one (plain words, no
 model jargon):
 
-> Before we generate anything: by default I recommend **Seedance 2.5 Flash** for video and **ElevenLabs
-> TTS v4 Turbo** for voice-over (paired with the best-value live image and music models on Tokentide), and
-> I'll show you the full itemized estimated quote for the whole video (video, images, voice-over, music and
-> SFX) before spending anything. How would you like to choose the models?
-> 1. **Use the recommended defaults (Recommended).** Seedance 2.5 Flash for video + ElevenLabs v4 Turbo for
->    voice-over + live Pro image & music models.
-> 2. **Compare Essential / Pro / Max levels.** Show three price/quality tiers from Tokentide's live catalog
->    (rated by the Arena leaderboard for video & images).
+> Before we generate anything: by default I recommend our **Pro** tier — **Seedance 2.5 Flash** for video
+> and **ElevenLabs TTS v4 Turbo** for voice-over, paired with the best-value live Pro image and music models
+> on Tokentide — and I'll show you the full itemized estimated quote for the whole video (video, images,
+> voice-over, music and SFX) before spending anything. How would you like to choose the models?
+> 1. **Pro (Recommended).** Seedance 2.5 Flash for video + ElevenLabs v4 Turbo for voice-over + live Pro
+>    image & music models.
+> 2. **Compare Essential / Pro / Max levels.** Show all three price/quality tiers from Tokentide's live
+>    catalog (rated by the Arena leaderboard for video & images).
 > 3. **I'll choose my own models.** Tell me which models you'd like; I'll check Tokentide availability and
 >    give you the full itemized quote first.
 
 - For a new batch in a project that already has models, add: **keep the same models as last time**
   (then re-price the whole video with `models.py cost`, §5).
 - Skip the question when the user already explicitly named models or a level in the request (follow their
-  exact choice, filling any unnamed jobs from the default stack), or when the request is research/strategy
+  exact choice, filling any unnamed jobs from the Pro default stack), or when the request is research/strategy
   only (ask and quote before production starts).
-- User away (said to proceed without them): use `--tier default` (Seedance 2.5 Flash + ElevenLabs v4 Turbo)
+- User away (said to proceed without them): use `--tier pro` (Seedance 2.5 Flash + ElevenLabs v4 Turbo)
   if its total fits the budget cap, else Essential, and say so in one line.
 - **Hard gate:** NEVER run any paid image, video, voice-over, or music generation until you have shown the
   user the full itemized estimated quote for the whole video (§5) and received confirmation!
@@ -62,12 +63,12 @@ model jargon):
    One name can cover several jobs (Kling makes video and images): use it only for the jobs the user meant.
    **ElevenLabs TTS v4 is never a default:** when the user says "ElevenLabs v4", use ElevenLabs TTS v4 Turbo
    (`match` suggests it); choose `elevenlabs-tts-v4` only if they explicitly want that exact, non-Turbo model.
-3. Jobs the user didn't name: fill them from the **default stack** (`models.py tiers` → `--tier default`:
+3. Jobs the user didn't name: fill them from the **Pro default stack** (`models.py tiers` → `--tier pro`:
    **Seedance 2.5 Flash** for video, **ElevenLabs TTS v4 Turbo** for voice-over, Pro-level images & music)
    and state every model you filled in, so the user can change any of them.
-4. `python3 SKILL_DIR/scripts/models.py choose --project P --tier default <user_overrides...>`
-   (`i2v_audio`, for shots with real sound, defaults to the video model when it makes sound — Seedance 2.5
-   Flash includes native audio).
+4. `python3 SKILL_DIR/scripts/models.py choose --project P --tier pro <user_overrides...>`
+   (`--tier default` is an exact alias; `i2v_audio`, for shots with real sound, defaults to the video model
+   when it makes sound — Seedance 2.5 Flash includes native audio).
 5. Show the **complete itemized estimated quote for the whole video** (§5: video + images + voice-over +
    music + SFX = total) and wait for an OK before the first paid step.
 
@@ -108,8 +109,9 @@ from `model_tiers.md`:
 > prices right now.
 > - **Essential**: the best-rated models among the most affordable ones. Ideal for testing ideas and posting
 >   often. Quote: $5.80.
-> - **Pro**: higher-rated models at a higher price, the best value in the middle of the range. For your main
->   posts and ads. Quote: $36.
+> - **Pro (Recommended default)**: **Seedance 2.5 Flash** for video and **ElevenLabs TTS v4 Turbo** for
+>   voice-over, paired with the best-value Pro image and music models. Ideal for main videos, walkthroughs
+>   and campaigns. Quote: $18.
 > - **Max**: the highest-rated models on Tokentide today, whatever the price. For launches and hero videos.
 >   Quote: $38.
 > Which level would you like?
@@ -134,16 +136,16 @@ Once the user picks (and after `choose`), tell them the models in plain words, o
 what the data supports (its rating, sound included, price), then the total from `models.py cost` (§5):
 
 > Pro it is. These are the models that will make your videos:
-> - **Video:** Seedance 2.5 (rated #2 on the Arena leaderboard for turning images into video; sound included)
+> - **Video:** Seedance 2.5 Flash (our Pro default for turning images into video; sound included)
 > - **Product images:** Grok Imagine 2.0 (rated #7 on Arena for editing with several images: it places your real
 >   product in new scenes)
 > - **Backgrounds:** Grok Imagine 2.0
-> - **Voice:** Inworld TTS 1.5 Max (our recommendation at this level)
+> - **Voice:** ElevenLabs TTS v4 Turbo (our Pro default voice model)
 > - **Music:** Sonilo V1.1 (an original track for each video)
 >
 > Quality ratings: Arena leaderboard (arena.ai), CC BY 4.0.
 >
-> **Quote: $35.98 for 3 videos** at today's prices. Extra retakes would cost more. Shall I start?
+> **Quote: $18.40 for 3 videos** at today's prices. Extra retakes would cost more. Shall I start?
 
 (The models and prices in these examples are illustrative; use the ones in `model_tiers.md` and `cost`.)
 
@@ -181,8 +183,10 @@ It prints **QUOTE** or **ESTIMATE**:
   `/audio/speech` and the queued audio route, music models).
 - Only rated (Arena, or the estimate for voice and music) and priced models count. They form a **price/quality frontier**: the models no other model beats on
   both price and quality. Its price range is split in three equal steps (on a log scale):
-  **Essential** = the best rated in the cheapest third; **Pro** = the best rated up to the second third;
-  **Max** = the best rated at any price. With three or more frontier models the levels are three different models;
+  **Essential** = the best rated in the cheapest third; **Pro** *(recommended default)* = pinned to **Seedance
+  2.5 Flash** for video and **ElevenLabs TTS v4 Turbo** for voice when available in the live catalog, plus the
+  best rated up to the second third for images and music; **Max** = the best rated at any price. With three or
+  more frontier models the levels are three different models;
   with fewer, levels share a model (§4 says how to explain it). A model off the frontier is never offered: some
   other model is both cheaper and better rated.
 - Unit prices: per second of video (at the planned resolution, or the nearest one the model offers), per image,

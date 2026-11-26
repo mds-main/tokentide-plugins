@@ -52,16 +52,17 @@ python3 scripts/models.py tiers --project projects/my-product --videos 3   # or 
 python3 scripts/models.py choose --project projects/my-product --tier pro
 python3 scripts/models.py cost --project projects/my-product --videos 3   # the total: a quote or an estimate
 ```
-Then ask your agent, e.g. "Make our new insulated bottle go viral on TikTok, Reels and X — use Tokentide".
+Then ask your agent, e.g. "Create a 90-second 16:9 walkthrough video for my app with real screenshots, natural voice-over and original music — use Tokentide".
 
 ## Choosing models & up-front quote
-By default, every new request proposes **Seedance 2.5 Flash** (`seedance-2-5-flash-image-to-video-basic`)
-for video and **ElevenLabs TTS v4 Turbo** (`elevenlabs-tts-v4-turbo`) for voice-overs, paired with live
-Pro-level image and music models from Tokentide — unless you explicitly specify different models or ask to
-compare the **Essential / Pro / Max** tiers (`models.py tiers`, Arena leaderboard ratings for video/images
-under CC BY 4.0 and skill estimates for voice/music). Before any paid generation starts, `models.py cost`
-always presents the full itemized estimated quote for the whole video (video clips, images/keyframes,
-voice-over, music and SFX). Details: `references/models.md`.
+By default, every new request proposes the **Pro** tier — **Seedance 2.5 Flash**
+(`seedance-2-5-flash-image-to-video-basic`) for video and **ElevenLabs TTS v4 Turbo**
+(`elevenlabs-tts-v4-turbo`) for voice-overs, paired with live Pro-level image and music models from
+Tokentide — unless you explicitly specify different models or pick another level from the **Essential /
+Pro / Max** tiers (`models.py tiers`, Arena leaderboard ratings for video/images under CC BY 4.0 and skill
+estimates for voice/music). Before any paid generation starts, `models.py cost` always presents the full
+itemized estimated quote for the whole video (video clips, images/keyframes, voice-over, music and SFX).
+Details: `references/models.md`.
 
 ## Tokentide-specific behaviour
 - Prices = Venice list × the tide multiplier (cheapest late in the UTC day); `--lane lowtide` for

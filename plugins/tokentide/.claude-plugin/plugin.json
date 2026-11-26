@@ -1,7 +1,7 @@
 {
   "name": "tokentide",
   "displayName": "Tokentide",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Use the Tokentide API from Claude: live tide prices, Low Tide, quotes and cost estimates, the model catalog, your balance and usage, and paid calls under your own price caps, including image, video and music generation. Includes the professional-video skill for producing any kind of studio-grade video (16:9, 9:16, 1:1) grounded in real visual references and live captures with Tokentide's models and FFmpeg.",
   "author": {
     "name": "Tokentide",
